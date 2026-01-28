@@ -1,0 +1,63 @@
+{
+  "lexicon": 1,
+  "id": "com.dreamtree.skill",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "description": "A user's tagged skill with mastery and ranking information from DreamTree career workbook",
+      "record": {
+        "type": "object",
+        "required": ["skillName", "createdAt"],
+        "properties": {
+          "skillName": {
+            "type": "string",
+            "description": "Name of the skill (e.g., 'Project Management')",
+            "maxLength": 200
+          },
+          "skillId": {
+            "type": "string",
+            "description": "Reference to DreamTree master skill ID, if applicable",
+            "maxLength": 50
+          },
+          "category": {
+            "type": "string",
+            "description": "Skill category classification",
+            "knownValues": ["transferable", "self_management", "knowledge"]
+          },
+          "mastery": {
+            "type": "integer",
+            "description": "Self-assessed mastery level (1-5)",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "rank": {
+            "type": "integer",
+            "description": "User's ranking of this skill relative to others",
+            "minimum": 1
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Optional evidence or context for this skill",
+            "maxLength": 5000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this skill was first recorded"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When this skill was last modified"
+          },
+          "dreamtreeId": {
+            "type": "string",
+            "description": "Original record ID in DreamTree D1 database",
+            "maxLength": 50
+          }
+        }
+      }
+    }
+  }
+}

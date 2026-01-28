@@ -1,0 +1,21 @@
+name = "dreamtree"
+main = ".open-next/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dreamtree-db"
+database_id = "28ff92b2-a0f1-4bab-a98f-da483b2fdcc1"
+
+# Staging environment
+[env.staging]
+name = "dreamtree-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "dreamtree-db"
+database_id = "28ff92b2-a0f1-4bab-a98f-da483b2fdcc1"

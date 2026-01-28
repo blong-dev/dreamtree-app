@@ -1,0 +1,53 @@
+{
+  "name": "dreamtree",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:pages": "npx opennextjs-cloudflare build",
+    "start": "next start",
+    "lint": "eslint",
+    "deploy": "npm run build:pages && npx wrangler deploy",
+    "deploy:staging": "npm run build:pages && npx wrangler deploy --env staging",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "db:seed": "npx tsx scripts/seed-local-db.ts",
+    "db:reset": "rm -f ./data/dreamtree.db && npm run db:seed",
+    "db:sync": "npx tsx scripts/sync-from-d1.ts"
+  },
+  "dependencies": {
+    "@atproto/api": "^0.18.14",
+    "@atproto/oauth-client": "^0.5.13",
+    "@opennextjs/cloudflare": "^1.14.8",
+    "bcryptjs": "^3.0.3",
+    "nanoid": "^5.1.6",
+    "next": "15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.18",
+    "wrangler": "^4.57.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260107.1",
+    "@eslint/eslintrc": "^3.3.3",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.4",
+    "better-sqlite3": "^12.6.2",
+    "eslint": "^9",
+    "eslint-config-next": "15.1.6",
+    "jsdom": "^26.0.0",
+    "lightningcss": "^1.29.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^3.0.4"
+  }
+}
