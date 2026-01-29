@@ -16,12 +16,13 @@ interface OnboardingBody {
   backgroundColor: string;
   textColor: string;
   font: string;
+  textSize?: number;
 }
 
 export const POST = withAuth(async (request, { userId, db, sessionId }) => {
   try {
     const body: OnboardingBody = await request.json();
-    const { name, backgroundColor, textColor, font } = body;
+    const { name, backgroundColor, textColor, font, textSize } = body;
 
     // Validate required fields
     if (!name || !backgroundColor || !textColor || !font) {
@@ -32,6 +33,7 @@ export const POST = withAuth(async (request, { userId, db, sessionId }) => {
     }
 
     const now = new Date().toISOString();
+    const sizeValue = textSize ?? 1.0;
 
     // Encrypt display_name before storing (IMP-048)
     const encryptedName = await encryptPII(db, sessionId, name.trim());
@@ -48,10 +50,10 @@ export const POST = withAuth(async (request, { userId, db, sessionId }) => {
     await db
       .prepare(
         `UPDATE user_settings
-         SET background_color = ?, text_color = ?, font = ?, updated_at = ?
+         SET background_color = ?, text_color = ?, font = ?, text_size = ?, updated_at = ?
          WHERE user_id = ?`
       )
-      .bind(backgroundColor, textColor, font, now, userId)
+      .bind(backgroundColor, textColor, font, sizeValue, now, userId)
       .run();
 
     return NextResponse.json({ success: true });

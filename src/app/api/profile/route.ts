@@ -21,6 +21,7 @@ interface UserSettings {
   backgroundColor: string;
   textColor: string;
   font: string;
+  textSize: number;
   personalityType: string | null;
 }
 
@@ -49,9 +50,9 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
 
     // Fetch settings
     const settings = await db
-      .prepare('SELECT background_color, text_color, font, personality_type FROM user_settings WHERE user_id = ?')
+      .prepare('SELECT background_color, text_color, font, text_size, personality_type FROM user_settings WHERE user_id = ?')
       .bind(userId)
-      .first<{ background_color: string; text_color: string; font: string; personality_type: string | null }>();
+      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; personality_type: string | null }>();
 
     // Fetch skills with skill names (join with skills table)
     const skillsResult = await db
@@ -85,6 +86,7 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
       backgroundColor: settings?.background_color || 'ivory',
       textColor: settings?.text_color || 'charcoal',
       font: settings?.font || 'inter',
+      textSize: settings?.text_size ?? 1.0,
       personalityType: settings?.personality_type || null,
     };
 
@@ -120,7 +122,7 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
 
 // Valid theme values (IMP-042)
 const VALID_COLORS = new Set(['ivory', 'creamy-tan', 'brown', 'charcoal', 'black', 'sage', 'rust']);
-const VALID_FONTS = new Set(['inter', 'lora', 'courier-prime', 'shadows-into-light', 'jacquard-24']);
+const VALID_FONTS = new Set(['inter', 'lora', 'courier-prime', 'shadows-into-light', 'fleur-de-leah']);
 
 /**
  * PATCH /api/profile
@@ -129,7 +131,7 @@ const VALID_FONTS = new Set(['inter', 'lora', 'courier-prime', 'shadows-into-lig
 export const PATCH = withAuth(async (request, { userId, db }) => {
   try {
     const body = await request.json();
-    const { backgroundColor, textColor, font } = body;
+    const { backgroundColor, textColor, font, textSize } = body;
 
     // Validate inputs (IMP-042)
     if (backgroundColor !== undefined && !VALID_COLORS.has(backgroundColor)) {
@@ -141,10 +143,13 @@ export const PATCH = withAuth(async (request, { userId, db }) => {
     if (font !== undefined && !VALID_FONTS.has(font)) {
       return NextResponse.json({ error: 'Invalid font' }, { status: 400 });
     }
+    if (textSize !== undefined && (typeof textSize !== 'number' || textSize < 0.5 || textSize > 2.0)) {
+      return NextResponse.json({ error: 'Invalid text size' }, { status: 400 });
+    }
 
     // Build update query dynamically based on provided fields
     const updates: string[] = [];
-    const values: (string | null)[] = [];
+    const values: (string | number | null)[] = [];
 
     if (backgroundColor !== undefined) {
       updates.push('background_color = ?');
@@ -157,6 +162,10 @@ export const PATCH = withAuth(async (request, { userId, db }) => {
     if (font !== undefined) {
       updates.push('font = ?');
       values.push(font);
+    }
+    if (textSize !== undefined) {
+      updates.push('text_size = ?');
+      values.push(textSize);
     }
 
     if (updates.length === 0) {

@@ -60,15 +60,16 @@ export default async function WorkbookPage() { // code_id:161
   let savedSequence = 0;
   try {
     const settingsRow = await db.raw
-      .prepare('SELECT background_color, text_color, font, current_sequence FROM user_settings WHERE user_id = ?')
+      .prepare('SELECT background_color, text_color, font, text_size, current_sequence FROM user_settings WHERE user_id = ?')
       .bind(userId)
-      .first<{ background_color: string; text_color: string; font: string; current_sequence: number | null }>();
+      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; current_sequence: number | null }>();
 
     if (settingsRow) {
       theme = {
         backgroundColor: settingsRow.background_color as BackgroundColorId,
         textColor: settingsRow.text_color as TextColorId,
         font: settingsRow.font as FontFamilyId,
+        textSize: settingsRow.text_size ?? 1.0,
       };
       savedSequence = settingsRow.current_sequence || 0;
     }
@@ -96,17 +97,22 @@ export default async function WorkbookPage() { // code_id:161
 
   const responseProgress = progressResult?.max_sequence || 0;
 
-  // BUG-357: Use MAX of response progress and saved sequence position
-  const progress = Math.max(responseProgress, savedSequence);
-
   // Get total blocks count
   const totalResult = await db.raw
     .prepare('SELECT MAX(sequence) as total FROM stem WHERE part <= 2')
     .first<{ total: number }>();
   const totalBlocks = totalResult?.total || 0;
 
-  // Fetch blocks 1 through progress+1 (all completed + current)
-  const targetSequence = Math.min(progress + 1, totalBlocks);
+  // BUG-357: Determine target sequence
+  // - responseProgress = highest sequence with a response (completed)
+  // - savedSequence = current viewing position (from position API)
+  // For responses: add +1 to show next block after last completed
+  // For savedSequence: use directly since it's already the current position
+  const progressBasedTarget = Math.min(responseProgress + 1, totalBlocks);
+  const targetSequence = Math.max(progressBasedTarget, savedSequence);
+
+  // Progress value for client = last "completed" sequence (targetSequence - 1)
+  const progress = targetSequence > 0 ? targetSequence - 1 : 0;
 
   // Schema consolidation: prompts table removed, all inputs are now tools
   const stemRows = await db.raw

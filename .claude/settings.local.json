@@ -4,7 +4,27 @@
       "Bash(tree:*)",
       "Bash(find:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(node -e:*)",
+      "Bash(curl:*)",
+      "Bash(npx wrangler d1 execute:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run reset-progress:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node scripts/reset-progress.js:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(findstr:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(cmd //c \"taskkill /PID 1164232 /F\")",
+      "Bash(git checkout:*)"
     ]
   }
 }

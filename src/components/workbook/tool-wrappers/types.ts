@@ -17,6 +17,8 @@ export interface ToolSaveResponse {
  */
 export interface ToolWrapperRef {
   save: () => Promise<void>;
+  /** Returns true if the tool has valid data that can be saved */
+  isValid: () => boolean;
 }
 
 /**
@@ -34,4 +36,8 @@ export interface ToolWrapperProps {
   initialData?: string;
   /** BUG-380: Read-only mode for completed tools in history */
   readOnly?: boolean;
+  /** Counter to trigger data refetch (for Part B responsiveness to Part A edits) */
+  refreshTrigger?: number;
+  /** Called after successful auto-save (for completed tools to trigger refresh of dependent tools) */
+  onDataChange?: () => void;
 }

@@ -75,7 +75,7 @@ export function AppShell({
           </Header>
         )}
 
-        <main className="app-shell-content">{children}</main>
+        <main className="app-shell-content" data-show-input={showInput}>{children}</main>
 
         {showInput && inputType !== 'none' && (
           <InputArea

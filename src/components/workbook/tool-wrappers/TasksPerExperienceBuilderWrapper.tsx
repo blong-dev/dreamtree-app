@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, forwardRef, useImperativeHandle } from 'react';
 import { TasksPerExperienceBuilder, type ExperienceWithTasks } from '@/components/tools/TasksPerExperienceBuilder';
 import { useToolSave } from '@/hooks/useToolSave';
+import { useConnectionData } from '@/hooks/useConnectionData';
 import type { ToolWrapperProps, ToolWrapperRef } from './types';
 
 /**
@@ -16,73 +17,72 @@ export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolW
   onComplete,
   initialData,
   readOnly = false,
+  refreshTrigger,
+  onDataChange,
 }, ref) { // code_id:1030
-  const [experiencesWithTasks, setExperiencesWithTasks] = useState<ExperienceWithTasks[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load initialData for read-only mode (completed tools in history)
-  useEffect(() => {
-    if (initialData) {
-      try {
-        const parsed = JSON.parse(initialData);
-        if (parsed.experiencesWithTasks && Array.isArray(parsed.experiencesWithTasks)) {
-          setExperiencesWithTasks(parsed.experiencesWithTasks);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('[TasksPerExperienceBuilderWrapper] Failed to parse initialData:', err);
-        setIsLoading(false);
+  // Parse initialData to ExperienceWithTasks[]
+  const parseInitialData = useCallback((json: string): ExperienceWithTasks[] | null => {
+    try {
+      const parsed = JSON.parse(json);
+      if (parsed.experiencesWithTasks && Array.isArray(parsed.experiencesWithTasks)) {
+        return parsed.experiencesWithTasks;
       }
-      return;
+    } catch (err) {
+      console.error('[TasksPerExperienceBuilderWrapper] Failed to parse initialData:', err);
     }
+    return null;
+  }, []);
 
-    // Fetch experiences from Part a (via connection or direct fetch)
-    const fetchExperiences = async () => {
-      try {
-        // Try connection first if provided
-        if (connectionId) {
-          // Add timestamp to bust cache and ensure fresh data after Part a save
-          const res = await fetch(`/api/data/connection?connectionId=${connectionId}&_t=${Date.now()}`, {
-            cache: 'no-store',
-          });
-          const result = await res.json();
-          if (!result.isEmpty && result.data && Array.isArray(result.data)) {
-            // Connection returns experiences - initialize with empty task arrays
-            const expWithTasks = result.data.map((exp: ExperienceWithTasks['experience']) => ({
-              experience: exp,
-              tasks: [],
-            }));
-            setExperiencesWithTasks(expWithTasks);
-            setIsLoading(false);
-            return;
-          }
-        }
+  // Transform connection data (experiences from Part A) to ExperienceWithTasks[]
+  const transformConnectionData = useCallback((data: unknown[]): ExperienceWithTasks[] => {
+    return data.map((exp) => ({
+      experience: exp as ExperienceWithTasks['experience'],
+      tasks: [],
+    }));
+  }, []);
 
-        // Fallback: fetch experiences directly from domain table
-        const res = await fetch(`/api/data/experiences?_t=${Date.now()}`, {
-          cache: 'no-store',
-        });
-        const result = await res.json();
-        if (result.experiences && Array.isArray(result.experiences)) {
-          const expWithTasks = result.experiences.map((exp: ExperienceWithTasks['experience']) => ({
-            experience: exp,
-            tasks: [],
-          }));
-          setExperiencesWithTasks(expWithTasks);
-        }
-      } catch (err) {
-        console.error('[TasksPerExperienceBuilderWrapper] Failed to load experiences:', err);
-      } finally {
-        setIsLoading(false);
+  // Fallback: fetch experiences directly from domain table
+  const fallbackFetch = useCallback(async (): Promise<ExperienceWithTasks[] | null> => {
+    try {
+      const res = await fetch(`/api/data/experiences?_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      const result = await res.json();
+      if (result.experiences && Array.isArray(result.experiences)) {
+        return result.experiences.map((exp: ExperienceWithTasks['experience']) => ({
+          experience: exp,
+          tasks: [],
+        }));
       }
-    };
-
-    if (!readOnly) {
-      fetchExperiences();
-    } else {
-      setIsLoading(false);
+    } catch (err) {
+      console.error('[TasksPerExperienceBuilderWrapper] Failed to load experiences from fallback:', err);
     }
-  }, [connectionId, initialData, readOnly]);
+    return null;
+  }, []);
+
+  // Merge fresh experiences with existing data, preserving user's tasks
+  const mergeWithExisting = useCallback((existing: ExperienceWithTasks[], fresh: ExperienceWithTasks[]): ExperienceWithTasks[] => {
+    // Build a map of existing tasks by experience ID
+    const existingTasksMap = new Map(existing.map(e => [e.experience.id, e.tasks]));
+
+    // Return fresh experiences with preserved tasks
+    return fresh.map(exp => ({
+      experience: exp.experience,
+      tasks: existingTasksMap.get(exp.experience.id) || [],
+    }));
+  }, []);
+
+  const { data: experiencesWithTasks, setData: setExperiencesWithTasks, isLoading } = useConnectionData({
+    connectionId,
+    initialData,
+    readOnly,
+    refreshTrigger,
+    parseInitialData,
+    transformConnectionData,
+    fallbackFetch,
+    mergeWithExisting,
+    defaultValue: [],
+  });
 
   // Get data in format expected by domain writer
   const getData = useCallback(() => ({
@@ -93,6 +93,7 @@ export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolW
     stemId,
     getData,
     onComplete,
+    onDataChange,
   });
 
   // Check if tool has valid input (at least one experience has at least one task)

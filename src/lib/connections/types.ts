@@ -166,7 +166,7 @@ export interface Experience {
   id: string;
   title: string;
   organization: string | null;
-  type: 'job' | 'education' | 'project' | 'other';
+  experienceType: 'job' | 'education' | 'project' | 'other';
   startDate: string | null;
   endDate: string | null;
   description: string | null;

@@ -12,6 +12,7 @@ export interface ThemeSettings {
   backgroundColor: BackgroundColorId;
   textColor: TextColorId;
   font: FontFamilyId;
+  textSize: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.4 = 140%
 }
 
 /**
@@ -23,7 +24,7 @@ export interface ThemeSettings {
 export function applyTheme(settings: ThemeSettings): void { // code_id:462
   if (typeof document === 'undefined') return;
 
-  const { backgroundColor, textColor, font } = settings;
+  const { backgroundColor, textColor, font, textSize } = settings;
 
   // Apply background color
   const bg = getColorById(backgroundColor);
@@ -37,6 +38,18 @@ export function applyTheme(settings: ThemeSettings): void { // code_id:462
   // Apply font
   const fontOption = getFontById(font);
   document.documentElement.style.setProperty('--font-body', fontOption.family);
+
+  // Apply font size: base size * user multiplier
+  const baseSizePx = fontOption.baseSizePx || 16;
+  const adjustedSize = baseSizePx * textSize;
+  document.documentElement.style.setProperty('--text-base', `${adjustedSize}px`);
+
+  // Apply letter spacing if specified
+  if (fontOption.letterSpacing) {
+    document.documentElement.style.setProperty('--letter-spacing-body', fontOption.letterSpacing);
+  } else {
+    document.documentElement.style.removeProperty('--letter-spacing-body');
+  }
 }
 
 /**
@@ -47,6 +60,7 @@ export function getDefaultTheme(): ThemeSettings { // code_id:463
     backgroundColor: 'ivory',
     textColor: 'charcoal',
     font: 'inter',
+    textSize: 1.0,
   };
 }
 
@@ -56,7 +70,8 @@ export function getDefaultTheme(): ThemeSettings { // code_id:463
 export function parseThemeSettings(
   backgroundColor?: string | null,
   textColor?: string | null,
-  font?: string | null
+  font?: string | null,
+  textSize?: number | null
 ): ThemeSettings { // code_id:464
   const defaults = getDefaultTheme();
 
@@ -64,5 +79,6 @@ export function parseThemeSettings(
     backgroundColor: (backgroundColor || defaults.backgroundColor) as BackgroundColorId,
     textColor: (textColor || defaults.textColor) as TextColorId,
     font: (font || defaults.font) as FontFamilyId,
+    textSize: textSize ?? defaults.textSize,
   };
 }

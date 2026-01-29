@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage",
     "db:seed": "npx tsx scripts/seed-local-db.ts",
     "db:reset": "rm -f ./data/dreamtree.db && npm run db:seed",
-    "db:sync": "npx tsx scripts/sync-from-d1.ts"
+    "db:sync": "npx tsx scripts/sync-from-d1.ts",
+    "reset-progress": "node scripts/reset-progress.js"
   },
   "dependencies": {
     "@atproto/api": "^0.18.14",
@@ -25,6 +26,7 @@
     "nanoid": "^5.1.6",
     "next": "15.1.6",
     "react": "^19.0.0",
+    "react-datepicker": "^9.1.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.1.18",
     "wrangler": "^4.57.0"
@@ -39,6 +41,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
     "better-sqlite3": "^12.6.2",

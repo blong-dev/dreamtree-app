@@ -202,7 +202,7 @@ export async function fetchExperiences(
     id: row.id as string,
     title: row.title as string,
     organization: row.organization as string | null,
-    type: row.experience_type as 'job' | 'education' | 'project' | 'other',
+    experienceType: row.experience_type as 'job' | 'education' | 'project' | 'other',
     startDate: row.start_date as string | null,
     endDate: row.end_date as string | null,
     description: row.description as string | null,

@@ -44,28 +44,39 @@ export const SimpleInputWrapper = forwardRef<ToolWrapperRef, SimpleInputWrapperP
   useEffect(() => {
     if (initialData) {
       try {
+        // initialData is JSON-stringified, so parse it first
+        const parsed = JSON.parse(initialData);
+
         switch (toolType) {
           case 'textarea':
           case 'text_input':
-            setTextValue(initialData);
+            setTextValue(typeof parsed === 'string' ? parsed : initialData);
             break;
           case 'slider':
-            setSliderValue(parseInt(initialData, 10) || 5);
+            setSliderValue(typeof parsed === 'number' ? parsed : parseInt(initialData, 10) || 5);
             break;
           case 'checkbox':
-            setCheckboxValue(initialData === 'yes' || initialData === 'true');
+            setCheckboxValue(parsed === 'yes' || parsed === true);
             break;
           case 'checkbox_group':
-            setCheckboxGroupValue(initialData.split(', ').filter(Boolean));
+            if (Array.isArray(parsed)) {
+              setCheckboxGroupValue(parsed);
+            } else if (typeof parsed === 'string') {
+              setCheckboxGroupValue(parsed.split(', ').filter(Boolean));
+            }
             break;
           case 'radio':
           case 'select':
-            setRadioValue(initialData);
-            setSelectValue(initialData);
+            setRadioValue(typeof parsed === 'string' ? parsed : initialData);
+            setSelectValue(typeof parsed === 'string' ? parsed : initialData);
             break;
         }
       } catch (err) {
+        // If JSON parse fails, use raw value (legacy data)
         console.error('[SimpleInputWrapper] Failed to parse initialData:', err);
+        if (toolType === 'textarea' || toolType === 'text_input') {
+          setTextValue(initialData);
+        }
       }
     }
   }, [initialData, toolType]);

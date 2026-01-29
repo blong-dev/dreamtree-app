@@ -62,6 +62,8 @@ interface ToolEmbedProps {
   readOnly?: boolean;
   /** Counter to trigger data refetch (for Part B responsiveness to Part A edits) */
   refreshTrigger?: number;
+  /** Called after successful auto-save (for completed tools to trigger refresh of dependent tools) */
+  onDataChange?: () => void;
 }
 
 /**
@@ -95,7 +97,7 @@ type ToolName =
   | 'skill_mastery_rater';
 
 export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolEmbed(
-  { tool, stemId, connectionId, onComplete, initialData, readOnly = false, refreshTrigger },
+  { tool, stemId, connectionId, onComplete, initialData, readOnly = false, refreshTrigger, onDataChange },
   ref
 ) { // code_id:13
   const toolName = (tool.name || '').toLowerCase().replace(/-/g, '_') as ToolName;
@@ -148,6 +150,8 @@ export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolE
     readOnly,
     // Trigger to refetch data when dependencies change
     refreshTrigger,
+    // Notify parent when data changes (for completed tools to trigger dependent refresh)
+    onDataChange,
   };
 
   const renderTool = () => { // code_id:383

@@ -39,6 +39,10 @@ export type ToolMessageData = {
   activityId: number;
   connectionId: number | null;
   response: string; // JSON stringified tool data
+  // Schema consolidation: simple input tools need these fields
+  toolType?: string;
+  promptText?: string | null;
+  inputConfig?: Record<string, unknown>;
 };
 
 export type Message = {

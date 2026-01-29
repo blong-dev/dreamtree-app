@@ -16,9 +16,11 @@ interface VisualsStepProps {
   backgroundColor: BackgroundColorId | null;
   textColor: TextColorId | null;
   font: FontFamilyId | null;
+  textSize: number;
   onBackgroundChange: (color: BackgroundColorId) => void;
   onTextColorChange: (color: TextColorId) => void;
   onFontChange: (font: FontFamilyId) => void;
+  onTextSizeChange: (size: number) => void;
 }
 
 function CheckIcon({ className, style }: { className?: string; style?: React.CSSProperties }) { // code_id:257
@@ -42,13 +44,18 @@ export function VisualsStep({
   backgroundColor,
   textColor,
   font,
+  textSize,
   onBackgroundChange,
   onTextColorChange,
   onFontChange,
+  onTextSizeChange,
 }: VisualsStepProps) { // code_id:256
   const previewBg = backgroundColor ? getColorById(backgroundColor).hex : undefined;
   const previewText = textColor ? getColorById(textColor).hex : undefined;
   const previewFontStyle = font ? getFontStyle(font) : {};
+  const previewFontSize = previewFontStyle.fontSize
+    ? `calc(${previewFontStyle.fontSize} * ${textSize})`
+    : `calc(1rem * ${textSize})`;
 
   return (
     <div className="visuals-step">
@@ -135,7 +142,11 @@ export function VisualsStep({
             >
               <span
                 className="font-preview-sample"
-                style={{ fontFamily: fontOption.family }}
+                style={{
+                  fontFamily: fontOption.family,
+                  fontSize: fontOption.baseSizePx ? `${fontOption.baseSizePx}px` : undefined,
+                  letterSpacing: fontOption.letterSpacing,
+                }}
               >
                 {fontOption.sampleText}
               </span>
@@ -148,6 +159,27 @@ export function VisualsStep({
         </div>
       </div>
 
+      {/* Text Size */}
+      <div className="visuals-section">
+        <h3 className="visuals-section-title">
+          Text Size <span className="visuals-size-value">{Math.round(textSize * 100)}%</span>
+        </h3>
+        <div className="visuals-slider">
+          <span className="visuals-slider-label">A</span>
+          <input
+            type="range"
+            min="0.8"
+            max="1.4"
+            step="0.05"
+            value={textSize}
+            onChange={(e) => onTextSizeChange(parseFloat(e.target.value))}
+            className="visuals-slider-input"
+            aria-label="Text size"
+          />
+          <span className="visuals-slider-label visuals-slider-label-lg">A</span>
+        </div>
+      </div>
+
       {/* Live Preview */}
       <div
         className="visuals-preview"
@@ -155,6 +187,7 @@ export function VisualsStep({
           backgroundColor: previewBg,
           color: previewText,
           ...previewFontStyle,
+          fontSize: previewFontSize,
         }}
       >
         <p className="visuals-preview-text">

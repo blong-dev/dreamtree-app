@@ -17,6 +17,7 @@ export const SkillMasteryRaterWrapper = forwardRef<ToolWrapperRef, ToolWrapperPr
   initialData,
   readOnly = false,
   refreshTrigger,
+  onDataChange,
 }, ref) { // code_id:1050
   const [skills, setSkills] = useState<SkillWithMastery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,6 +109,7 @@ export const SkillMasteryRaterWrapper = forwardRef<ToolWrapperRef, ToolWrapperPr
     stemId,
     getData,
     onComplete,
+    onDataChange,
   });
 
   // Check if tool has valid input (has skills to rate - they all have default mastery values)

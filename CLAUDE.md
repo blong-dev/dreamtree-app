@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DreamTree is a career development workbook application built with Next.js 15 and deployed on Cloudflare Workers. Users complete guided exercises to discover their professional path through skills assessment, values exploration, and interactive tools. The app emphasizes privacy-first design and data ownership via AT Protocol (Bluesky) integration.
 
+## When Debugging or Fixing Issues
+
+- Stop and understand before writing code. Ask the user what they're experiencing - what they clicked, what happened, what they expected.
+- Read the relevant code and trace through the actual execution path before proposing solutions.
+- If a fix doesn't work, don't layer another patch on top. Step back, reassess, and make sure you understand the real problem.
+- When the user suggests a different approach, take it seriously - they understand their codebase and the problem better than your assumptions.
+- Adding code is not progress. Engineering efficient machines is progress.
+
+## Code Integrity - Non-Negotiable
+
+- **Every line has dependencies.** Before modifying or deleting ANY code, understand what depends on it. Trace imports, usages, and side effects.
+- **Never delete without checking.** Run `git diff` before any checkout/restore. Search the codebase for usages before removing functions, classes, or files.
+- **No patchwork.** This is a robust, clean, secure application. Quick fixes that don't address root causes are not acceptable. If you don't understand the problem, keep investigating until you do.
+- **Respect uncommitted work.** Working directory changes are NOT recoverable once discarded. Always verify what exists before running destructive git commands.
+
 ## Commands
 
 ```bash
@@ -77,6 +92,17 @@ export const POST = withAuth(async (request, { userId, db, userRole, session, en
 
 ### Testing
 Uses Vitest with React Testing Library. Tests located alongside components (`.test.tsx` files).
+
+## Known Gotchas
+
+### Rapid Animation Skipping (BUG-460)
+When users skip animations rapidly (holding Enter), `displayedBlockIndex` can exceed `blocks.length` due to async state updates in the fetch-and-advance cycle. Fix:
+1. Use `effectiveDisplayIndex = Math.min(displayedBlockIndex, blocks.length)` for currentBlock lookup
+2. Add corrective useEffect that syncs displayedBlockIndex back to bounds if it overshoots
+
+### Connection Data Caching
+When fetching data from connections for tool pre-population, add cache-busting (`?_t=${Date.now()}`) and `cache: 'no-store'` to ensure fresh data after previous tool saves.
+
 
 ## Project Structure
 

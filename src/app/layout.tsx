@@ -40,7 +40,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Manufacturing+Consent&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Fleur+De+Leah&display=swap" rel="stylesheet" />
       </head>
       <body className={`${inter.variable} ${lora.variable} ${courierPrime.variable} ${shadowsIntoLight.variable}`}>
         <a href="#main-content" className="skip-link">

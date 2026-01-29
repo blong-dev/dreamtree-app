@@ -68,6 +68,35 @@ function ContentBlockRenderer({
     }
   }, [onComplete]);
 
+  // Parse markdown-style links [text](url) into React elements
+  const parseLinks = (text: string): React.ReactNode => {
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = linkRegex.exec(text)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      // Add the link
+      parts.push(
+        <a key={match.index} href={match[2]} className="inline-link">
+          {match[1]}
+        </a>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
+
   const renderText = (text: string) => { // code_id:169
     if (animate && !isSkipped) {
       return (
@@ -79,7 +108,8 @@ function ContentBlockRenderer({
         />
       );
     }
-    return text;
+    // Parse links in non-animated text
+    return parseLinks(text);
   };
 
   switch (block.type) {

@@ -51,6 +51,7 @@ export interface UserSettings {
   background_color: string;
   text_color: string;
   font: string;
+  text_size: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.2 = 120%
   personality_type: string | null;
   created_at: string;
   updated_at: string;

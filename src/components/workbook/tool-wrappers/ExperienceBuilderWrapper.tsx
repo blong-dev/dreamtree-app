@@ -16,6 +16,7 @@ export const ExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolWrapperPr
   onComplete,
   initialData,
   readOnly = false,
+  onDataChange,
 }, ref) { // code_id:1010
   const [experiences, setExperiences] = useState<ExperienceEntry[]>([]);
 
@@ -56,6 +57,7 @@ export const ExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolWrapperPr
     stemId,
     getData,
     onComplete,
+    onDataChange,
   });
 
   // Check if tool has valid input (at least one experience added)

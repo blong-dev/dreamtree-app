@@ -37,7 +37,7 @@ export type FontFamilyId =
   | 'lora'
   | 'courier-prime'
   | 'shadows-into-light'
-  | 'manufacturing-consent';
+  | 'fleur-de-leah';
 
 export type TextColorId =
   | 'ivory'
@@ -56,6 +56,7 @@ export type UserPreview = {
   backgroundColor: BackgroundColorId;
   textColor: TextColorId;
   fontFamily: FontFamilyId;
+  textSize: number;
 };
 
 // TOC Inline types (for dashboard)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { RankingGrid, RankingItem, Comparison } from '@/components/tools';
 import { useToolSave } from '@/hooks/useToolSave';
 import type { ToolWrapperProps, ToolWrapperRef } from './types';
@@ -11,9 +11,19 @@ export const RankingGridWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
   onComplete,
   initialData,
   readOnly = false,
+  refreshTrigger,
+  onDataChange,
 }, ref) { // code_id:379
   const [items, setItems] = useState<RankingItem[]>([]);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
+
+  // Track the last refreshTrigger we fetched for (to detect changes)
+  const lastRefreshRef = useRef<number | undefined>(refreshTrigger);
+  // Store current items and comparisons for preserving on refresh
+  const itemsRef = useRef<RankingItem[]>(items);
+  const comparisonsRef = useRef<Comparison[]>(comparisons);
+  itemsRef.current = items;
+  comparisonsRef.current = comparisons;
 
   // BUG-380: Load initialData for read-only mode
   useEffect(() => {
@@ -28,23 +38,64 @@ export const RankingGridWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     }
   }, [initialData]);
 
-  // Fetch connected data if provided (only for active tools)
+  // Fetch connected data if provided - with refresh support
   useEffect(() => {
-    if (!connectionId || readOnly || initialData) return;
+    if (!connectionId || initialData) return;
 
-    fetch(`/api/data/connection?connectionId=${connectionId}`)
-      .then(res => res.json())
-      .then(result => {
+    const shouldRefetch = refreshTrigger !== undefined && refreshTrigger !== lastRefreshRef.current;
+
+    // Update ref if we're going to refetch
+    if (shouldRefetch) {
+      lastRefreshRef.current = refreshTrigger;
+    }
+
+    // Skip fetch for read-only unless it's a refresh
+    if (readOnly && !shouldRefetch) return;
+
+    // Fetch fresh data from connection
+    const fetchConnectionData = async () => {
+      try {
+        const res = await fetch(`/api/data/connection?connectionId=${connectionId}&_t=${Date.now()}`, {
+          cache: 'no-store',
+        });
+        const result = await res.json();
         if (result.isEmpty || !result.data || !Array.isArray(result.data)) return;
-        const connectedItems = result.data.map((item: { id?: string; value?: string; name?: string; rank?: number }, i: number) => ({
+
+        const freshItems = result.data.map((item: { id?: string; value?: string; name?: string; rank?: number }, i: number) => ({
           id: item.id || `connected-${i}`,
           value: item.value || item.name || '',
-          rank: item.rank,
+          rank: undefined as number | undefined, // Fresh items start unranked
         }));
-        setItems(connectedItems);
-      })
-      .catch(err => console.error('[RankingGridWrapper] Failed to load connection data:', err));
-  }, [connectionId, readOnly, initialData]);
+
+        // If this is a refresh, preserve ranks for items that still exist
+        if (shouldRefetch) {
+          const existingRankMap = new Map(itemsRef.current.map(item => [item.id, item.rank]));
+          const existingValueRankMap = new Map(itemsRef.current.map(item => [item.value, item.rank]));
+
+          const mergedItems = freshItems.map((item: RankingItem) => ({
+            ...item,
+            // Try to preserve rank by ID first, then by value
+            rank: existingRankMap.get(item.id) ?? existingValueRankMap.get(item.value) ?? item.rank,
+          }));
+
+          // Filter comparisons to only include items that still exist
+          const freshItemIds = new Set(freshItems.map((item: RankingItem) => item.id));
+          const validComparisons = comparisonsRef.current.filter(
+            comp => freshItemIds.has(comp.winnerId) && freshItemIds.has(comp.loserId)
+          );
+
+          setItems(mergedItems);
+          setComparisons(validComparisons);
+        } else {
+          setItems(freshItems);
+        }
+      } catch (err) {
+        console.error('[RankingGridWrapper] Failed to load connection data:', err);
+      }
+    };
+
+    fetchConnectionData();
+  }, [connectionId, readOnly, initialData, refreshTrigger]);
 
   const handleCompare = useCallback((winnerId: string, loserId: string) => {
     setComparisons(prev => [...prev, { winnerId, loserId }]);
@@ -60,6 +111,7 @@ export const RankingGridWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     stemId,
     getData,
     onComplete,
+    onDataChange,
   });
 
   // Check if tool has valid input (items exist and have been ranked)

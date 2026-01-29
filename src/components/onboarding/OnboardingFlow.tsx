@@ -31,6 +31,7 @@ interface StoredProgress {
     backgroundColor: BackgroundColorId | null;
     textColor: TextColorId | null;
     font: FontFamilyId | null;
+    textSize: number;
   };
   timestamp: number;
 }
@@ -75,11 +76,13 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
     backgroundColor: BackgroundColorId | null;
     textColor: TextColorId | null;
     font: FontFamilyId | null;
+    textSize: number;
   }>({
     name: '',
     backgroundColor: null,
     textColor: null,
     font: null,
+    textSize: 1.0,
   });
   const [isLoaded, setIsLoaded] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -89,7 +92,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
   useEffect(() => {
     const saved = loadProgress();
     if (saved && saved.data.name) {
-      setData(saved.data);
+      setData({ ...saved.data, textSize: saved.data.textSize ?? 1.0 });
       setNameInput(saved.data.name);
       if (saved.step >= 2) {
         setStep('visuals');
@@ -115,9 +118,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
         backgroundColor: data.backgroundColor,
         textColor: data.textColor,
         font: data.font,
+        textSize: data.textSize,
       });
     }
-  }, [data.backgroundColor, data.textColor, data.font]);
+  }, [data.backgroundColor, data.textColor, data.font, data.textSize]);
 
   // Focus input when showing name step
   useEffect(() => {
@@ -139,19 +143,6 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
   }
 
   if (step === 'visuals') {
-    // Show name response
-    messages.push({
-      id: 'msg-name-ask',
-      type: 'content',
-      data: [{ type: 'paragraph', text: "What should we call you?" }] as ContentBlock[],
-      timestamp: new Date(),
-    });
-    messages.push({
-      id: 'msg-name-response',
-      type: 'user',
-      data: { type: 'text', value: data.name } as UserResponseContent,
-      timestamp: new Date(),
-    });
     // Greeting and visuals intro
     messages.push({
       id: 'msg-visuals-intro',
@@ -189,6 +180,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
 
   const handleFontSelect = useCallback((fontId: FontFamilyId) => {
     setData(prev => ({ ...prev, font: fontId }));
+  }, []);
+
+  const handleTextSizeChange = useCallback((size: number) => {
+    setData(prev => ({ ...prev, textSize: size }));
   }, []);
 
   const handleComplete = useCallback(() => {
@@ -239,10 +234,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
             <AcornIcon className="welcome-brand-icon" />
             <span className="welcome-brand-text">dreamtree</span>
           </div>
-          <h1 className="welcome-title">Your Career Journey Starts Here</h1>
+          <h1 className="welcome-title">Welcome</h1>
           <p className="welcome-description">
-            A guided journey to discover your career path. We&apos;ll explore your
-            values, skills, and interests together — one conversation at a time.
+            We&apos;re here to discover what you already know. There are no wrong answers, only honest ones.
           </p>
           <button
             className="button button-primary button-lg"
@@ -345,7 +339,14 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
                     data-selected={data.font === fontOption.id}
                     aria-label={fontOption.name}
                   >
-                    <span className="font-preview-sample" style={{ fontFamily: fontOption.family }}>
+                    <span
+                      className="font-preview-sample"
+                      style={{
+                        fontFamily: fontOption.family,
+                        fontSize: fontOption.baseSizePx ? `${fontOption.baseSizePx}px` : undefined,
+                        letterSpacing: fontOption.letterSpacing,
+                      }}
+                    >
                       {fontOption.sampleText}
                     </span>
                     <span className="font-preview-name">{fontOption.name}</span>
@@ -354,6 +355,27 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
                     )}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Text Size */}
+            <div className="visuals-section">
+              <h3 className="visuals-section-title">
+                Text Size <span className="visuals-size-value">{Math.round(data.textSize * 100)}%</span>
+              </h3>
+              <div className="visuals-slider">
+                <span className="visuals-slider-label">A</span>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="1.4"
+                  step="0.05"
+                  value={data.textSize}
+                  onChange={(e) => handleTextSizeChange(parseFloat(e.target.value))}
+                  className="visuals-slider-input"
+                  aria-label="Text size"
+                />
+                <span className="visuals-slider-label visuals-slider-label-lg">A</span>
               </div>
             </div>
 
@@ -373,7 +395,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
               onClick={handleComplete}
               disabled={!isVisualsComplete}
             >
-              Begin My Journey
+              Let&apos;s do this.
             </button>
           </div>
         </div>

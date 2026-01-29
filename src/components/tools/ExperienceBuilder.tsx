@@ -168,7 +168,7 @@ function ExperienceForm({ initialData, onSubmit, onCancel, disabled }: Experienc
   const [organization, setOrganization] = useState(initialData?.organization || '');
   const [experienceType, setExperienceType] = useState<ExperienceType>(initialData?.experienceType || 'job');
   const [startDate, setStartDate] = useState(initialData?.startDate || '');
-  const [endDate, setEndDate] = useState(initialData?.endDate || '');
+  const [endDate, setEndDate] = useState(initialData?.endDate === 'present' ? '' : (initialData?.endDate || ''));
   const [isOngoing, setIsOngoing] = useState(initialData?.endDate === 'present');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -188,13 +188,17 @@ function ExperienceForm({ initialData, onSubmit, onCancel, disabled }: Experienc
     if (e.key === 'Escape') {
       onCancel();
     }
+    // Stop Enter from bubbling to global handlers (prevents workbook advancement)
+    if (e.key === 'Enter') {
+      e.stopPropagation();
+    }
   };
 
   return (
     <form className="experience-form" onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
       <div className="experience-form-field">
         <label htmlFor="exp-title" className="experience-form-label">
-          Title / Role <span className="required">*</span>
+          Role / Accomplishment <span className="required">*</span>
         </label>
         <input
           id="exp-title"
@@ -202,7 +206,7 @@ function ExperienceForm({ initialData, onSubmit, onCancel, disabled }: Experienc
           className="experience-form-input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g., Software Engineer, MBA Student"
+          placeholder="e.g., Electrician, MBA"
           disabled={disabled}
           autoFocus
           required
@@ -250,10 +254,11 @@ function ExperienceForm({ initialData, onSubmit, onCancel, disabled }: Experienc
           </label>
           <input
             id="exp-start"
-            type="month"
+            type="date"
             className="experience-form-input"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
+            max={endDate || undefined}
             disabled={disabled}
           />
         </div>
@@ -264,40 +269,44 @@ function ExperienceForm({ initialData, onSubmit, onCancel, disabled }: Experienc
           </label>
           <input
             id="exp-end"
-            type="month"
+            type="date"
             className="experience-form-input"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
+            min={startDate || undefined}
             disabled={disabled || isOngoing}
           />
-          <label className="experience-form-checkbox">
-            <input
-              type="checkbox"
-              checked={isOngoing}
-              onChange={(e) => setIsOngoing(e.target.checked)}
-              disabled={disabled}
-            />
-            <span>Present / Ongoing</span>
-          </label>
         </div>
       </div>
 
       <div className="experience-form-actions">
-        <button
-          type="button"
-          className="button button-secondary"
-          onClick={onCancel}
-          disabled={disabled}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="button button-primary"
-          disabled={disabled || !title.trim()}
-        >
-          {initialData ? 'Save' : 'Add'}
-        </button>
+        <label className="experience-form-checkbox">
+          <input
+            type="checkbox"
+            checked={isOngoing}
+            onChange={(e) => setIsOngoing(e.target.checked)}
+            disabled={disabled}
+          />
+          <span>Present / Ongoing</span>
+        </label>
+
+        <div className="experience-form-buttons">
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={onCancel}
+            disabled={disabled}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="button button-primary"
+            disabled={disabled || !title.trim()}
+          >
+            {initialData ? 'Save' : 'Add'}
+          </button>
+        </div>
       </div>
     </form>
   );

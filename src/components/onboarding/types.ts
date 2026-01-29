@@ -1,12 +1,13 @@
 export type BackgroundColorId = 'ivory' | 'creamy-tan' | 'brown' | 'charcoal' | 'black';
 export type TextColorId = 'ivory' | 'creamy-tan' | 'brown' | 'charcoal' | 'black';
-export type FontFamilyId = 'inter' | 'lora' | 'courier-prime' | 'shadows-into-light' | 'manufacturing-consent';
+export type FontFamilyId = 'inter' | 'lora' | 'courier-prime' | 'shadows-into-light' | 'fleur-de-leah';
 
 export interface OnboardingData {
   name: string;
   backgroundColor: BackgroundColorId;
   textColor: TextColorId;
   font: FontFamilyId;
+  textSize: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.2 = 120%
 }
 
 export interface ColorOption {
@@ -37,8 +38,8 @@ export const FONTS: FontOption[] = [
   { id: 'inter', name: 'Clean Sans', family: "'Inter', system-ui, sans-serif", sampleText: 'The quick brown fox' },
   { id: 'lora', name: 'Classic Serif', family: "'Lora', Georgia, serif", sampleText: 'The quick brown fox' },
   { id: 'courier-prime', name: 'Typewriter', family: "'Courier Prime', monospace", sampleText: 'The quick brown fox', baseSizePx: 17, letterSpacing: '-0.02em' },
-  { id: 'shadows-into-light', name: 'Handwritten', family: "'Shadows Into Light', cursive", sampleText: 'The quick brown fox', baseSizePx: 18 },
-  { id: 'manufacturing-consent', name: 'Vintage Display', family: "'Manufacturing Consent', serif", sampleText: 'The quick brown fox', baseSizePx: 20, letterSpacing: '0.02em' },
+  { id: 'shadows-into-light', name: 'Handwritten', family: "'Shadows Into Light', cursive", sampleText: 'The quick brown fox', baseSizePx: 22 },
+  { id: 'fleur-de-leah', name: 'Vintage Display', family: "'Fleur De Leah', cursive", sampleText: 'The quick brown fox', baseSizePx: 36, letterSpacing: '0.02em' },
 ];
 
 export function getColorById(id: BackgroundColorId): ColorOption { // code_id:250

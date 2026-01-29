@@ -15,6 +15,7 @@ interface UseApplyThemeOptions {
   backgroundColor?: BackgroundColorId | string | null;
   textColor?: TextColorId | string | null;
   font?: FontFamilyId | string | null;
+  textSize?: number | null;
 }
 
 /**
@@ -29,14 +30,15 @@ interface UseApplyThemeOptions {
  * });
  */
 export function useApplyTheme(options: UseApplyThemeOptions): void { // code_id:110
-  const { backgroundColor, textColor, font } = options;
+  const { backgroundColor, textColor, font, textSize } = options;
 
   useEffect(() => {
     const settings = parseThemeSettings(
       backgroundColor as string,
       textColor as string,
-      font as string
+      font as string,
+      textSize
     );
     applyTheme(settings);
-  }, [backgroundColor, textColor, font]);
+  }, [backgroundColor, textColor, font, textSize]);
 }
