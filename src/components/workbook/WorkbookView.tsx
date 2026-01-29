@@ -115,8 +115,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // State to sync with isAdvancingRef for button disabled state (refs don't trigger re-renders)
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isToolSaving, setIsToolSaving] = useState(false); // Track tool save in progress
-  // Counter to force refetch of tools when data changes (for Part B responsiveness to Part A edits)
-  const [dataVersion, setDataVersion] = useState(0);
+  // Counter for connection data refresh - triggers Part B refresh when Part A saves
+  const [connectionDataVersion, setConnectionDataVersion] = useState(0);
 
   // Analytics tracking refs
   const exerciseStartTimeRef = useRef<number>(Date.now());
@@ -394,8 +394,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
         prev.map((b) => (b.id === currentBlock.id ? { ...b, response: data.responseText || '' } : b))
       );
 
-      // Increment data version to trigger refetch in dependent tools
-      setDataVersion((v) => v + 1);
+      // Increment connection data version to trigger refetch in dependent tools
+      setConnectionDataVersion((v) => v + 1);
 
       // Append next block if available
       if (data.nextBlock) {
@@ -501,15 +501,16 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       if (!waitingForContinue || !currentAnimationComplete) return;
 
       const target = e.target as HTMLElement;
+      // Exclude clicks on any interactive elements or inside forms
       if (
-        target.tagName === 'BUTTON' ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'A' ||
+        target.closest('form') ||
         target.closest('button') ||
         target.closest('input') ||
+        target.closest('select') ||
         target.closest('textarea') ||
-        target.closest('a')
+        target.closest('a') ||
+        target.closest('[role="button"]') ||
+        target.closest('[contenteditable]')
       ) {
         return;
       }
@@ -619,7 +620,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     };
 
     // Always editable - changes auto-save
-    // Pass dataVersion as refreshTrigger so dependent tools refetch when Part A changes
+    // Pass connectionDataVersion as refreshTrigger so dependent tools refetch when Part A changes
+    // Use separate connectionDataVersion to avoid scroll/focus issues caused by dataVersion
     return (
       <div className="workbook-completed-tool">
         <ToolEmbed
@@ -628,15 +630,20 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           connectionId={data.connectionId}
           initialData={data.response}
           readOnly={false}
-          refreshTrigger={dataVersion}
+          refreshTrigger={connectionDataVersion}
           onComplete={() => {
-            // When a completed tool saves, increment dataVersion to refresh dependent tools
-            setDataVersion((v) => v + 1);
+            // When a completed tool saves via Continue, trigger refresh of dependent tools
+            setConnectionDataVersion((v) => v + 1);
+          }}
+          onDataChange={() => {
+            // When a completed tool auto-saves, only increment connectionDataVersion
+            // This triggers Part B refresh without causing scroll/focus issues
+            setConnectionDataVersion((v) => v + 1);
           }}
         />
       </div>
     );
-  }, [dataVersion]);
+  }, [connectionDataVersion]);
 
   return (
     <AppShell
@@ -660,6 +667,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           onMessageAnimated={handleMessageAnimated}
           scrollTrigger={displayedBlockIndex}
           renderTool={renderTool}
+          toolRefreshKey={connectionDataVersion}
         />
 
         <div ref={inputZoneRef}>

@@ -17,6 +17,8 @@ interface UseToolSaveOptions {
   stemId: number;
   getData: () => unknown;
   onComplete: (data: ToolSaveResponse) => void;
+  /** Called after successful auto-save (for completed tools to trigger refresh of dependent tools) */
+  onDataChange?: () => void;
 }
 
 interface UseToolSaveResult {
@@ -34,7 +36,8 @@ export function useToolSave({
   stemId,
   getData,
   onComplete,
-}: UseToolSaveOptions): UseToolSaveResult { // code_id:108
+  onDataChange,
+}: UseToolSaveOptions): UseToolSaveResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,9 +92,11 @@ export function useToolSave({
     }
   }, [stemId, onComplete]);
 
-  // Keep onComplete ref updated for auto-save
+  // Keep refs updated for auto-save
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const onDataChangeRef = useRef(onDataChange);
+  onDataChangeRef.current = onDataChange;
 
   // Auto-save effect (IMP-008)
   // NOTE: Auto-save does NOT call onComplete - that would advance the user
@@ -108,7 +113,7 @@ export function useToolSave({
 
     autoSaveTimeout.current = setTimeout(async () => {
       try {
-        await fetch('/api/workbook/response', {
+        const response = await fetch('/api/workbook/response', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -117,6 +122,10 @@ export function useToolSave({
           }),
         });
         // Auto-save is silent - no onComplete to avoid advancing without validation
+        // But notify onDataChange so dependent tools can refresh
+        if (response.ok && onDataChangeRef.current) {
+          onDataChangeRef.current();
+        }
       } catch {
         // Silent failure
       }
