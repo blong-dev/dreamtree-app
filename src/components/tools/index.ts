@@ -33,3 +33,5 @@ export { SkillMasteryRater, type SkillWithMastery } from './SkillMasteryRater';
 export { ToolPage } from './ToolPage';
 export type { ToolType, ToolInstance } from './ToolPage';
 export { ToolInstanceCard } from './ToolInstanceCard';
+export { ReferencePage } from './ReferencePage';
+export type { ReferenceType } from './ReferencePage';

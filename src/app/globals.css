@@ -747,6 +747,18 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
+/* Links in message content */
+.message-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity var(--duration-fast) var(--ease-default);
+}
+
+.message-content a:hover {
+  opacity: 0.8;
+}
+
 /* Resource link - external link cards */
 .resource-link {
   display: flex;
@@ -6758,6 +6770,16 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   font-size: var(--text-xl);
   font-weight: var(--font-semibold);
   margin: 0;
+}
+
+.tool-page-subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  margin: var(--space-2) 0 0 0;
+}
+
+.tool-page-content {
+  margin-top: var(--space-4);
 }
 
 .tool-page-actions {

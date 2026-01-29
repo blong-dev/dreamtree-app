@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { SearchIcon, CheckIcon } from '../icons';
+import { CheckIcon } from '../icons';
+import { ReferencePage } from '../tools';
 
 type SkillCategory = 'transferable' | 'self_management' | 'knowledge';
 
@@ -14,6 +15,7 @@ interface Skill {
 interface SkillsPageProps {
   skills: Skill[];
   userSkillIds: string[];
+  onBack: () => void;
 }
 
 const CATEGORY_ORDER: SkillCategory[] = ['transferable', 'self_management', 'knowledge'];
@@ -30,7 +32,7 @@ const CATEGORY_DESCRIPTIONS: Record<SkillCategory, string> = {
   knowledge: 'Domain-specific expertise — industry knowledge, technical skills, certifications.',
 };
 
-export function SkillsPage({ skills, userSkillIds }: SkillsPageProps) { // code_id:285
+export function SkillsPage({ skills, userSkillIds, onBack }: SkillsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showOnlyTagged, setShowOnlyTagged] = useState(false);
 
@@ -69,41 +71,31 @@ export function SkillsPage({ skills, userSkillIds }: SkillsPageProps) { // code_
 
   const taggedCount = userSkillIds.length;
 
+  const subtitle = taggedCount > 0
+    ? `You've tagged ${taggedCount} skill${taggedCount !== 1 ? 's' : ''} so far.`
+    : 'Complete exercises to tag skills you demonstrate.';
+
+  const filterControls = taggedCount > 0 ? (
+    <label className="skills-page-filter">
+      <input
+        type="checkbox"
+        checked={showOnlyTagged}
+        onChange={(e) => setShowOnlyTagged(e.target.checked)}
+      />
+      <span>Show only my skills</span>
+    </label>
+  ) : null;
+
   return (
-    <div className="skills-page">
-      <header className="skills-page-header">
-        <h1 className="skills-page-title">Skills Library</h1>
-        <p className="skills-page-subtitle">
-          {taggedCount > 0
-            ? `You've tagged ${taggedCount} skill${taggedCount !== 1 ? 's' : ''} so far.`
-            : 'Complete exercises to tag skills you demonstrate.'}
-        </p>
-      </header>
-
-      <div className="skills-page-controls">
-        <div className="skills-page-search">
-          <SearchIcon className="skills-page-search-icon" />
-          <input
-            type="text"
-            className="skills-page-search-input"
-            placeholder="Search skills..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        {taggedCount > 0 && (
-          <label className="skills-page-filter">
-            <input
-              type="checkbox"
-              checked={showOnlyTagged}
-              onChange={(e) => setShowOnlyTagged(e.target.checked)}
-            />
-            <span>Show only my skills</span>
-          </label>
-        )}
-      </div>
-
+    <ReferencePage
+      referenceType="skills_library"
+      onBack={onBack}
+      subtitle={subtitle}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search skills..."
+      filterControls={filterControls}
+    >
       {CATEGORY_ORDER.map((category) => {
         const categorySkills = groupedSkills[category];
         if (categorySkills.length === 0) return null;
@@ -144,6 +136,6 @@ export function SkillsPage({ skills, userSkillIds }: SkillsPageProps) { // code_
           )}
         </div>
       )}
-    </div>
+    </ReferencePage>
   );
 }
