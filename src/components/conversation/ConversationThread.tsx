@@ -30,6 +30,8 @@ interface ConversationThreadProps {
   renderTool?: (data: ToolMessageData, messageId: string) => React.ReactNode;
   /** Always scroll to bottom on new content, regardless of scroll position */
   alwaysScrollToBottom?: boolean;
+  /** Key to force tool re-renders when connection data changes */
+  toolRefreshKey?: number;
 }
 
 // IMP-006: Memoize MessageRenderer to prevent re-renders when messages array changes
@@ -39,12 +41,14 @@ const MessageRenderer = memo(function MessageRenderer({
   animate,
   onAnimationComplete,
   renderTool,
+  toolRefreshKey,
 }: {
   message: Message;
   onEdit?: () => void;
   animate?: boolean;
   onAnimationComplete?: (wasSkipped: boolean) => void;
   renderTool?: (data: ToolMessageData, messageId: string) => React.ReactNode;
+  toolRefreshKey?: number;
 }) { // code_id:29
   switch (message.type) {
     case 'content':
@@ -87,7 +91,9 @@ const MessageRenderer = memo(function MessageRenderer({
     // For user messages, check if onEdit callback exists (not the reference)
     !!prevProps.onEdit === !!nextProps.onEdit &&
     // For tool messages, check if renderTool exists
-    !!prevProps.renderTool === !!nextProps.renderTool
+    !!prevProps.renderTool === !!nextProps.renderTool &&
+    // Force re-render when tool data dependencies change
+    prevProps.toolRefreshKey === nextProps.toolRefreshKey
   );
 });
 
@@ -105,6 +111,7 @@ export function ConversationThread({
   disableAnimation = false,
   renderTool,
   alwaysScrollToBottom = false,
+  toolRefreshKey,
 }: ConversationThreadProps) { // code_id:28
   const threadRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState<ScrollState>('at-current');
@@ -211,6 +218,7 @@ export function ConversationThread({
                 : undefined
             }
             renderTool={renderTool}
+            toolRefreshKey={toolRefreshKey}
           />
         );
       })}

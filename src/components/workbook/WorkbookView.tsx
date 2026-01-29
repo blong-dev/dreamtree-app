@@ -73,22 +73,17 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   // Track which block we're displaying (one-at-a-time progression)
   const [displayedBlockIndex, setDisplayedBlockIndex] = useState(() => {
-    // For returning users: initialProgress represents the server's target position
-    // We should start at that position, not search from the beginning
-    if (initialProgress > 0) {
-      // Returning user: show all blocks up to the loaded position
-      // The server already calculated the correct target based on savedSequence and responseProgress
-      return initialBlocks.length;
-    }
-
-    // New user: find first unanswered tool
+    // Find first unanswered tool - this check applies to ALL users
+    // We must stop at unanswered tools regardless of saved position
     const firstUnanswered = initialBlocks.findIndex(
       (b) => b.blockType === 'tool' && !b.response
     );
+
     if (firstUnanswered === -1) {
       // All tools answered - show up to last block
       return initialBlocks.length;
     }
+
     // Show up to and including the first unanswered tool
     // Clamp to ensure we never exceed array bounds
     return Math.min(firstUnanswered + 1, initialBlocks.length);
@@ -682,6 +677,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
                   tool={currentBlock.content as ToolData}
                   stemId={currentBlock.id}
                   connectionId={currentBlock.connectionId}
+                  refreshTrigger={connectionDataVersion}
                   onComplete={handleToolComplete}
                 />
                 <div className="workbook-tool-continue">
