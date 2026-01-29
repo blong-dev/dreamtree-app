@@ -74,12 +74,26 @@ export const SOAREDFormWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(fu
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (all required fields filled)
+  const isValid = useCallback(() => {
+    // Title and at least one SOARED field must be filled
+    return data.title.trim().length > 0 && (
+      data.situation.trim().length > 0 ||
+      data.obstacle.trim().length > 0 ||
+      data.action.trim().length > 0 ||
+      data.result.trim().length > 0 ||
+      data.evaluation.trim().length > 0 ||
+      data.discovery.trim().length > 0
+    );
+  }, [data]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

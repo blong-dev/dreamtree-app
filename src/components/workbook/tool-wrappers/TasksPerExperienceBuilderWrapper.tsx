@@ -41,7 +41,10 @@ export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolW
       try {
         // Try connection first if provided
         if (connectionId) {
-          const res = await fetch(`/api/data/connection?connectionId=${connectionId}`);
+          // Add timestamp to bust cache and ensure fresh data after Part a save
+          const res = await fetch(`/api/data/connection?connectionId=${connectionId}&_t=${Date.now()}`, {
+            cache: 'no-store',
+          });
           const result = await res.json();
           if (!result.isEmpty && result.data && Array.isArray(result.data)) {
             // Connection returns experiences - initialize with empty task arrays
@@ -56,7 +59,9 @@ export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolW
         }
 
         // Fallback: fetch experiences directly from domain table
-        const res = await fetch('/api/data/experiences');
+        const res = await fetch(`/api/data/experiences?_t=${Date.now()}`, {
+          cache: 'no-store',
+        });
         const result = await res.json();
         if (result.experiences && Array.isArray(result.experiences)) {
           const expWithTasks = result.experiences.map((exp: ExperienceWithTasks['experience']) => ({
@@ -90,12 +95,18 @@ export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolW
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one experience has at least one task)
+  const isValid = useCallback(() => {
+    return experiencesWithTasks.some(exp => exp.tasks && exp.tasks.length > 0);
+  }, [experiencesWithTasks]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   // Loading state
   if (isLoading) {

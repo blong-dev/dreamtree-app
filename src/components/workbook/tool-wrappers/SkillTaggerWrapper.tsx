@@ -71,12 +71,16 @@ export const SkillTaggerWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one skill selected)
+  const isValid = useCallback(() => selectedSkillIds.length > 0, [selectedSkillIds]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   const handleRetry = useCallback(() => {
     setDataError(null);

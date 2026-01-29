@@ -43,12 +43,18 @@ export const BudgetCalculatorWrapper = forwardRef<ToolWrapperRef, ToolWrapperPro
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (income entered)
+  const isValid = useCallback(() => {
+    return data.grossMonthlyIncome > 0 || data.grossYearlyIncome > 0;
+  }, [data.grossMonthlyIncome, data.grossYearlyIncome]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

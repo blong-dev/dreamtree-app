@@ -75,12 +75,16 @@ export const CompetencyAssessmentWrapper = forwardRef<ToolWrapperRef, ToolWrappe
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one competency scored)
+  const isValid = useCallback(() => data.scores.length > 0, [data.scores]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   const handleRetry = useCallback(() => {
     setDataError(null);

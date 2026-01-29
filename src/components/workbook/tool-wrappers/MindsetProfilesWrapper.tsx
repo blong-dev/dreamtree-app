@@ -61,12 +61,18 @@ export const MindsetProfilesWrapper = forwardRef<ToolWrapperRef, ToolWrapperProp
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one mindset profile selected)
+  const isValid = useCallback(() => {
+    return Object.values(data.selectedCharacters).some(value => value !== '');
+  }, [data.selectedCharacters]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

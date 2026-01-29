@@ -54,12 +54,18 @@ export const IdeaTreeWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(func
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (root idea and at least one layer1 idea)
+  const isValid = useCallback(() => {
+    return data.rootIdea.trim().length > 0 && data.layer1.some(v => v.trim().length > 0);
+  }, [data.rootIdea, data.layer1]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

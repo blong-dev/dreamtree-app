@@ -51,12 +51,16 @@ export const FlowTrackerWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one flow entry)
+  const isValid = useCallback(() => data.entries.length > 0, [data.entries]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

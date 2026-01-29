@@ -89,7 +89,13 @@ export function useToolSave({
     }
   }, [stemId, onComplete]);
 
+  // Keep onComplete ref updated for auto-save
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   // Auto-save effect (IMP-008)
+  // NOTE: Auto-save does NOT call onComplete - that would advance the user
+  // without validation. Only manual save (via Continue button) should advance.
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -110,6 +116,7 @@ export function useToolSave({
             responseText: JSON.stringify(getDataRef.current()),
           }),
         });
+        // Auto-save is silent - no onComplete to avoid advancing without validation
       } catch {
         // Silent failure
       }

@@ -61,12 +61,27 @@ export const FailureReframerWrapper = forwardRef<ToolWrapperRef, ToolWrapperProp
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least situation and one other field filled)
+  const isValid = useCallback(() => {
+    // Situation is required, plus at least one other field
+    const hasSituation = data.situation.trim().length > 0;
+    const hasOtherContent =
+      data.initialFeelings.trim().length > 0 ||
+      data.whatLearned.trim().length > 0 ||
+      data.whatWouldChange.trim().length > 0 ||
+      data.silverLining.trim().length > 0 ||
+      data.nextStep.trim().length > 0 ||
+      data.reframedStatement.trim().length > 0;
+    return hasSituation && hasOtherContent;
+  }, [data]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

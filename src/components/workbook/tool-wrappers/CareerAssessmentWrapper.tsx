@@ -64,12 +64,16 @@ export const CareerAssessmentWrapper = forwardRef<ToolWrapperRef, ToolWrapperPro
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one career option assessed)
+  const isValid = useCallback(() => data.options.length > 0, [data.options]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

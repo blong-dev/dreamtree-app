@@ -60,6 +60,8 @@ interface ToolEmbedProps {
   initialData?: string;
   /** BUG-380: Read-only mode for completed tools in history */
   readOnly?: boolean;
+  /** Counter to trigger data refetch (for Part B responsiveness to Part A edits) */
+  refreshTrigger?: number;
 }
 
 /**
@@ -68,6 +70,8 @@ interface ToolEmbedProps {
  */
 export interface ToolEmbedRef {
   save: () => Promise<void>;
+  /** Returns true if the tool has valid data that can be saved */
+  isValid: () => boolean;
 }
 
 type ToolName =
@@ -91,19 +95,20 @@ type ToolName =
   | 'skill_mastery_rater';
 
 export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolEmbed(
-  { tool, stemId, connectionId, onComplete, initialData, readOnly = false },
+  { tool, stemId, connectionId, onComplete, initialData, readOnly = false, refreshTrigger },
   ref
 ) { // code_id:13
   const toolName = (tool.name || '').toLowerCase().replace(/-/g, '_') as ToolName;
   const wrapperRef = useRef<ToolWrapperRef>(null);
 
-  // Expose save method to parent via ref
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       if (wrapperRef.current) {
         await wrapperRef.current.save();
       }
-    }
+    },
+    isValid: () => wrapperRef.current?.isValid() ?? false,
   }), []);
 
   // Track tool open on mount (only for active tools, not read-only history)
@@ -141,6 +146,8 @@ export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolE
     // BUG-380: Support read-only mode for completed tools in history
     initialData,
     readOnly,
+    // Trigger to refetch data when dependencies change
+    refreshTrigger,
   };
 
   const renderTool = () => { // code_id:383

@@ -11,40 +11,20 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 
-const AUTO_SAVE_DELAY = 1500;
-
 import { AppShell } from '../shell/AppShell';
 import { ConversationThread } from '../conversation/ConversationThread';
 import { ToolEmbed, type ToolEmbedRef } from './ToolEmbed';
 import { WorkbookInputZone } from './WorkbookInputZone';
-import { useToast, SaveIndicator } from '../feedback';
-import { TextInput, TextArea } from '../forms';
-import { SendIcon } from '../icons';
+import { useToast } from '../feedback';
 import { TOCPanel } from '../overlays/TOCPanel';
 import type { WorkbookProgress, BreadcrumbLocation as TOCLocation } from '../overlays/types';
 
 import { useApplyTheme } from '@/hooks/useApplyTheme';
-import { trackExerciseStart, trackPromptSubmit } from '@/lib/analytics';
-import type { SaveStatus } from '../feedback/types';
-import type { BlockWithResponse, ToolData, ThemeSettings, ToolType } from './types';
-import type { Message, ContentBlock, UserResponseContent, ToolMessageData } from '../conversation/types';
-import type { BreadcrumbLocation, InputType } from '../shell/types';
+import { trackExerciseStart } from '@/lib/analytics';
+import type { BlockWithResponse, ToolData, ThemeSettings } from './types';
+import type { Message, ContentBlock, ToolMessageData } from '../conversation/types';
+import type { BreadcrumbLocation } from '../shell/types';
 
-// Schema consolidation: text input tools use InputArea, others use ToolEmbed
-const TEXT_INPUT_TYPES: Set<ToolType> = new Set(['textarea', 'text_input']);
-
-function isTextInputTool(block: BlockWithResponse): boolean { // code_id:923
-  if (block.blockType !== 'tool') return false;
-  const toolType = block.content.toolType as ToolType | undefined;
-  return toolType !== undefined && TEXT_INPUT_TYPES.has(toolType);
-}
-
-function isStructuredInputTool(block: BlockWithResponse): boolean { // code_id:924
-  if (block.blockType !== 'tool') return false;
-  const toolType = block.content.toolType as ToolType | undefined;
-  // Structured inputs are non-text simple tools (slider, checkbox, etc.)
-  return toolType !== undefined && !TEXT_INPUT_TYPES.has(toolType) && toolType !== 'interactive';
-}
 
 interface WorkbookViewProps {
   initialBlocks: BlockWithResponse[];
@@ -83,6 +63,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     backgroundColor: theme?.backgroundColor,
     textColor: theme?.textColor,
     font: theme?.font,
+    textSize: theme?.textSize,
   });
 
   // Core state: blocks array and progress
@@ -92,24 +73,30 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   // Track which block we're displaying (one-at-a-time progression)
   const [displayedBlockIndex, setDisplayedBlockIndex] = useState(() => {
-    // Find first unanswered tool (text inputs or interactive tools), or show all if all answered
+    // For returning users: initialProgress represents the server's target position
+    // We should start at that position, not search from the beginning
+    if (initialProgress > 0) {
+      // Returning user: show all blocks up to the loaded position
+      // The server already calculated the correct target based on savedSequence and responseProgress
+      return initialBlocks.length;
+    }
+
+    // New user: find first unanswered tool
     const firstUnanswered = initialBlocks.findIndex(
       (b) => b.blockType === 'tool' && !b.response
     );
     if (firstUnanswered === -1) {
+      // All tools answered - show up to last block
       return initialBlocks.length;
     }
-    return firstUnanswered + 1;
+    // Show up to and including the first unanswered tool
+    // Clamp to ensure we never exceed array bounds
+    return Math.min(firstUnanswered + 1, initialBlocks.length);
   });
 
   // UI state
-  const [inputValue, setInputValue] = useState('');
-  const [inputType, setInputType] = useState<InputType>('none');
-  const [isSaving, setIsSaving] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<SaveStatus>('idle');
   const [waitingForContinue, setWaitingForContinue] = useState(false);
   const [currentAnimationComplete, setCurrentAnimationComplete] = useState(false);
-  const [promptAnimationComplete, setPromptAnimationComplete] = useState(false);
   const [inputZoneCollapsed, setInputZoneCollapsed] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
 
@@ -119,47 +106,53 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputZoneRef = useRef<HTMLDivElement>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const savedIndicatorTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedValueRef = useRef<string>('');
   const blockContentCache = useRef<Map<number, ContentBlock[]>>(new Map());
   const animatedMessageIdsRef = useRef<Set<string>>(new Set());
   const isAdvancingRef = useRef(false);
-  const isSavingRef = useRef(false); // Guard against save race conditions (BUG-022)
   const toolEmbedRef = useRef<ToolEmbedRef>(null); // Ref to call save() on active tool
+  const isToolSavingRef = useRef(false); // Guard against rapid clicks (refs are synchronous)
 
   // State to sync with isAdvancingRef for button disabled state (refs don't trigger re-renders)
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isToolSaving, setIsToolSaving] = useState(false); // Track tool save in progress
+  // Counter to force refetch of tools when data changes (for Part B responsiveness to Part A edits)
+  const [dataVersion, setDataVersion] = useState(0);
 
   // Analytics tracking refs
   const exerciseStartTimeRef = useRef<number>(Date.now());
   const lastTrackedExerciseRef = useRef<string>('');
 
   // Initialize animated message IDs for returning users
+  // Check if user has any progress to detect returning users
   const isInitializedRef = useRef(false);
-  if (!isInitializedRef.current && initialProgress > 0) {
+  const hasAnyResponse = initialBlocks.some(b => b.response);
+  if (!isInitializedRef.current && (initialProgress > 0 || hasAnyResponse)) {
     isInitializedRef.current = true;
-    // Mark all blocks up to displayed index as already animated
-    for (let i = 0; i < displayedBlockIndex && i < initialBlocks.length; i++) {
+    // Mark ALL loaded blocks as already animated (skip animations on return)
+    // For returning users, the server loads blocks up to their position,
+    // so we skip animation for all of them
+    for (let i = 0; i < initialBlocks.length; i++) {
       const block = initialBlocks[i];
       animatedMessageIdsRef.current.add(`block-${block.id}`);
-      // Text input tools have prompt-like display (question + response)
-      if (isTextInputTool(block)) {
-        animatedMessageIdsRef.current.add(`textinput-${block.id}`);
-        if (block.response) {
-          animatedMessageIdsRef.current.add(`response-${block.id}`);
-        }
-      }
     }
   } else if (!isInitializedRef.current) {
     isInitializedRef.current = true;
   }
 
   // Current active block for input
-  const currentBlock = blocks[displayedBlockIndex - 1];
-  const isToolBlock = currentBlock?.blockType === 'tool';
+  // Clamp displayedBlockIndex to valid range to prevent off-by-one errors during rapid skipping
+  const effectiveDisplayIndex = Math.min(displayedBlockIndex, blocks.length);
+  const currentBlock = effectiveDisplayIndex > 0 ? blocks[effectiveDisplayIndex - 1] : undefined;
+
+  // Sync displayedBlockIndex if it got out of bounds (can happen during rapid skipping)
+  useEffect(() => {
+    if (displayedBlockIndex > blocks.length && blocks.length > 0) {
+      setDisplayedBlockIndex(blocks.length);
+    }
+  }, [displayedBlockIndex, blocks.length]);
   const hasResponse = !!currentBlock?.response;
+  // Check if current block is an unanswered tool (needs input)
+  const hasToolInput = currentBlock?.blockType === 'tool' && !hasResponse;
 
   // Build messages array from blocks
   const messages = useMemo(() => {
@@ -181,87 +174,45 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           data: content,
           timestamp: new Date(),
         });
-      } else if (block.blockType === 'tool') {
-        // Check if this is a text input tool (uses InputArea flow like old prompts)
-        if (isTextInputTool(block)) {
-          // Show prompt text if available (usually NULL after schema consolidation)
-          if (block.content.promptText) {
-            const promptCacheKey = block.id + 10000000;
-            let promptContent = cache.get(promptCacheKey);
-            if (!promptContent) {
-              promptContent = [
-                { type: 'paragraph' as const, text: block.content.promptText },
-              ];
-              cache.set(promptCacheKey, promptContent);
-            }
-            result.push({
-              id: `textinput-${block.id}`,
-              type: 'content',
-              data: promptContent,
-              timestamp: new Date(),
-            });
-          }
-
-          // Show user's response if available
-          if (block.response) {
-            result.push({
-              id: `response-${block.id}`,
-              type: 'user',
-              data: { type: 'text', value: block.response } as UserResponseContent,
-              timestamp: new Date(),
-            });
-          }
-        } else if (block.response) {
-          // BUG-380: Add completed tools to conversation history
-          // Only show tools that have been completed (have a response)
-          const toolData: ToolMessageData = {
-            toolId: block.content.id || 0,
-            name: block.content.name || 'Tool',
-            description: block.content.description,
-            instructions: block.content.instructions,
-            exerciseId: block.exerciseId,
-            activityId: block.activityId || 1,
-            connectionId: block.connectionId,
-            response: block.response,
-          };
-          result.push({
-            id: `tool-${block.id}`,
-            type: 'tool',
-            data: toolData,
-            timestamp: new Date(),
-          });
-        }
+      } else if (block.blockType === 'tool' && block.response) {
+        // Add completed tools to conversation history (all tools use ToolEmbed now)
+        const toolData: ToolMessageData = {
+          toolId: block.content.id || 0,
+          name: block.content.name || 'Tool',
+          description: block.content.description,
+          instructions: block.content.instructions,
+          exerciseId: block.exerciseId,
+          activityId: block.activityId || 1,
+          connectionId: block.connectionId,
+          response: block.response,
+        };
+        result.push({
+          id: `tool-${block.id}`,
+          type: 'tool',
+          data: toolData,
+          timestamp: new Date(),
+        });
       }
     }
 
     return result;
   }, [blocks, displayedBlockIndex]);
 
-  // Determine input type based on current block
+  // Determine what UI to show based on current block
   useEffect(() => {
     if (!currentBlock) {
-      setInputType('none');
       setWaitingForContinue(false);
       return;
     }
 
     if (currentBlock.blockType === 'content') {
-      setInputType('none');
+      // Content blocks show Continue button after animation
       setWaitingForContinue(true);
     } else if (currentBlock.blockType === 'tool' && !currentBlock.response) {
+      // Unanswered tools - ToolEmbed will render
       setWaitingForContinue(false);
-      // Schema consolidation: check toolType for text inputs
-      const toolType = currentBlock.content.toolType;
-      if (toolType === 'text_input') {
-        setInputType('text');
-      } else if (toolType === 'textarea') {
-        setInputType('textarea');
-      } else {
-        // Structured inputs (slider, checkbox, etc.) and interactive tools handled by ToolEmbed
-        setInputType('none');
-      }
     } else {
-      // Block already answered, advance
+      // Block already answered, advance to next
       if (displayedBlockIndex < blocks.length) {
         setDisplayedBlockIndex((prev) => prev + 1);
       }
@@ -329,11 +280,6 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           setCurrentAnimationComplete(true);
         }
       }
-
-      // Text input tools have prompt-like animation handling
-      if (currentBlock && isTextInputTool(currentBlock) && messageId === `textinput-${currentBlock.id}`) {
-        setPromptAnimationComplete(true);
-      }
     },
     [currentBlock, displayedBlockIndex, blocks.length, hasMore, fetchNextBlock]
   );
@@ -341,20 +287,12 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Reset animation states when block changes
   useEffect(() => {
     setCurrentAnimationComplete(false);
-    setPromptAnimationComplete(false);
 
     // Check if new block is already animated (returning user)
     if (currentBlock?.blockType === 'content') {
       const contentMsgId = `block-${currentBlock.id}`;
       if (animatedMessageIdsRef.current.has(contentMsgId)) {
         setCurrentAnimationComplete(true);
-      }
-    }
-    // Text input tools have prompt-like animation check
-    if (currentBlock && isTextInputTool(currentBlock)) {
-      const textInputMsgId = `textinput-${currentBlock.id}`;
-      if (animatedMessageIdsRef.current.has(textInputMsgId)) {
-        setPromptAnimationComplete(true);
       }
     }
   }, [displayedBlockIndex, currentBlock]);
@@ -422,7 +360,17 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   // Handle tool Continue button - calls save() on the active tool via ref
   const handleToolContinue = useCallback(async () => {
-    if (!toolEmbedRef.current || isToolSaving) return;
+    // Guard against rapid clicks using ref (synchronous check)
+    if (!toolEmbedRef.current || isToolSavingRef.current) return;
+
+    // Check validity before saving
+    if (!toolEmbedRef.current.isValid()) {
+      showToast('Please complete this section before continuing.', { type: 'error' });
+      return;
+    }
+
+    // Set ref immediately to block further clicks
+    isToolSavingRef.current = true;
     setIsToolSaving(true);
     try {
       await toolEmbedRef.current.save();
@@ -430,166 +378,10 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       console.error('Error saving tool:', error);
       showToast('Failed to save. Please try again.', { type: 'error' });
     } finally {
+      isToolSavingRef.current = false;
       setIsToolSaving(false);
     }
-  }, [isToolSaving, showToast]);
-
-  // Auto-save for text inputs (schema consolidation: now uses stemId for all tools)
-  const autoSave = useCallback(
-    async (responseText: string) => {
-      if (!currentBlock || !responseText.trim()) return;
-      if (responseText === lastSavedValueRef.current) return;
-      // Only auto-save for text input tools
-      if (!isTextInputTool(currentBlock)) return;
-
-      setAutoSaveStatus('saving');
-      try {
-        const response = await fetch('/api/workbook/response', {
-          method: editingBlockId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            stemId: currentBlock.id,  // Use stemId for all tools now
-            responseText,
-          }),
-        });
-
-        if (response.ok) {
-          lastSavedValueRef.current = responseText;
-          // Update block in state
-          setBlocks((prev) =>
-            prev.map((b) => (b.id === currentBlock.id ? { ...b, response: responseText } : b))
-          );
-          setAutoSaveStatus('saved');
-          if (savedIndicatorTimerRef.current) {
-            clearTimeout(savedIndicatorTimerRef.current);
-          }
-          savedIndicatorTimerRef.current = setTimeout(() => {
-            setAutoSaveStatus('idle');
-          }, 2000);
-        } else {
-          setAutoSaveStatus('error');
-        }
-      } catch (error) {
-        console.error('Auto-save failed:', error);
-        setAutoSaveStatus('error');
-      }
-    },
-    [currentBlock, editingBlockId]
-  );
-
-  // Debounced auto-save effect
-  useEffect(() => {
-    if (inputType !== 'text' && inputType !== 'textarea') return;
-    if (!inputValue.trim()) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      autoSave(inputValue);
-    }, AUTO_SAVE_DELAY);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [inputValue, inputType, autoSave]);
-
-  // Save response and get next block (schema consolidation: uses stemId for all tools)
-  const handleSaveResponse = useCallback(
-    async (responseText: string) => {
-      // Use ref guard to prevent race conditions (BUG-022)
-      if (!currentBlock || isSavingRef.current) return;
-      // Only handle text input tools through this handler
-      if (!isTextInputTool(currentBlock)) return;
-      isSavingRef.current = true;
-
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-      }
-
-      // Skip if unchanged and already saved
-      if (responseText === lastSavedValueRef.current && !editingBlockId) {
-        setInputValue('');
-        setEditingBlockId(null);
-        setInputType('none');
-        lastSavedValueRef.current = '';
-        setTimeout(() => {
-          isSavingRef.current = false;
-          setDisplayedBlockIndex((prev) => prev + 1);
-        }, 300);
-        return;
-      }
-
-      setIsSaving(true);
-      try {
-        const response = await fetch('/api/workbook/response', {
-          method: editingBlockId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            stemId: currentBlock.id,  // Use stemId for all tools now
-            responseText,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to save response');
-        }
-
-        const data = await response.json();
-
-        // Track prompt submission
-        if (currentBlock.content.id) {
-          trackPromptSubmit(currentBlock.content.id.toString());
-        }
-
-        // Update current block with response
-        setBlocks((prev) =>
-          prev.map((b) => (b.id === currentBlock.id ? { ...b, response: responseText } : b))
-        );
-
-        // Append next block if available
-        if (data.nextBlock) {
-          setBlocks((prev) => [...prev, data.nextBlock]);
-        }
-
-        // Update progress
-        if (data.newProgress !== undefined) {
-          setProgress(data.newProgress);
-        }
-        if (data.hasMore !== undefined) {
-          setHasMore(data.hasMore);
-        }
-
-        // Clear input state
-        setInputValue('');
-        setEditingBlockId(null);
-        setInputType('none');
-        lastSavedValueRef.current = '';
-
-        // Advance to next block (unless editing)
-        if (!editingBlockId) {
-          setTimeout(() => {
-            setDisplayedBlockIndex((prev) => prev + 1);
-          }, 300);
-        }
-      } catch (error) {
-        console.error('Error saving response:', error);
-        if (error instanceof TypeError && error.message.includes('fetch')) {
-          showToast('Unable to connect. Check your internet connection.', { type: 'error' });
-        } else {
-          showToast('Failed to save your response. Please try again.', { type: 'error' });
-        }
-      } finally {
-        isSavingRef.current = false;
-        setIsSaving(false);
-      }
-    },
-    [currentBlock, editingBlockId, showToast]
-  );
+  }, [showToast]);
 
   // Handle tool completion - receives data from useToolSave
   // Updated: Now uses responseText from API instead of marker hack
@@ -601,6 +393,9 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       setBlocks((prev) =>
         prev.map((b) => (b.id === currentBlock.id ? { ...b, response: data.responseText || '' } : b))
       );
+
+      // Increment data version to trigger refetch in dependent tools
+      setDataVersion((v) => v + 1);
 
       // Append next block if available
       if (data.nextBlock) {
@@ -621,58 +416,17 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     [currentBlock]
   );
 
-  // BUG-404: Handle tool edit completion
-  const handleToolEditComplete = useCallback(
-    (data: { id: string; stemId?: number; responseText?: string; updated: boolean }) => {
-      // Update the block's response in state so UI reflects changes
-      if (editingBlockId && data.responseText) {
-        setBlocks((prev) =>
-          prev.map((b) => (b.id === editingBlockId ? { ...b, response: data.responseText } : b))
-        );
-      }
-      // Clear edit state
-      setEditingBlockId(null);
-      showToast('Tool updated', { type: 'success' });
-    },
-    [editingBlockId, showToast]
-  );
-
-  // Note: No longer need to fetch tool response on edit since we now store
-  // actual response data in block.response instead of a marker
-
-  // Handle editing a past response (text input tools or interactive tools)
+  // Handle editing a past tool response (all tools now use ToolEmbed in-place)
   const handleEditMessage = useCallback(
     (messageId: string) => {
-      // Text input response edit flow (schema consolidation: former prompts)
-      if (messageId.startsWith('response-')) {
-        const blockId = parseInt(messageId.replace('response-', ''), 10);
-        const block = blocks.find((b) => b.id === blockId);
-
-        if (!block || !isTextInputTool(block)) return;
-
-        setEditingBlockId(blockId);
-        setInputValue(block.response || '');
-
-        const toolType = block.content.toolType;
-        if (toolType === 'text_input') {
-          setInputType('text');
-        } else if (toolType === 'textarea') {
-          setInputType('textarea');
-        } else {
-          setInputType('none');
-        }
-        return;
-      }
-
-      // Tool edit flow (interactive tools)
       if (messageId.startsWith('tool-')) {
         const blockId = parseInt(messageId.replace('tool-', ''), 10);
         const block = blocks.find((b) => b.id === blockId);
 
         if (!block || block.blockType !== 'tool') return;
 
+        // Tool will render in-place with initialData from block.response
         setEditingBlockId(blockId);
-        // Tool will render in input zone with initialData from block.response
       }
     },
     [blocks]
@@ -713,23 +467,33 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Global Enter key handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { // code_id:387
-      if (e.key === 'Enter' && waitingForContinue && currentAnimationComplete) {
-        const activeElement = document.activeElement;
-        const isInputFocused =
-          activeElement?.tagName === 'INPUT' ||
-          activeElement?.tagName === 'TEXTAREA' ||
-          activeElement?.tagName === 'SELECT';
+      if (e.key !== 'Enter') return;
 
-        if (!isInputFocused) {
-          e.preventDefault();
-          handleContinue();
-        }
+      const activeElement = document.activeElement;
+      const isInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.tagName === 'SELECT';
+
+      if (isInputFocused) return;
+
+      // For content blocks - just continue
+      if (waitingForContinue && currentAnimationComplete) {
+        e.preventDefault();
+        handleContinue();
+        return;
+      }
+
+      // For tool blocks - validate before continuing
+      if (hasToolInput && !isToolSaving) {
+        e.preventDefault();
+        handleToolContinue();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [waitingForContinue, currentAnimationComplete, handleContinue]);
+  }, [waitingForContinue, currentAnimationComplete, handleContinue, hasToolInput, isToolSaving, handleToolContinue]);
 
   // Click-to-continue handler
   const handleContentAreaClick = useCallback(
@@ -827,23 +591,13 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   // Determine what's active for input zone
   const isWorkbookComplete = displayedBlockIndex >= blocks.length && !hasMore;
-  // Text input tools (textarea/text_input) use the floating InputArea
-  const hasTextInput =
-    (inputType === 'text' || inputType === 'textarea') && promptAnimationComplete && !hasResponse;
-  // Structured input tools (slider, checkbox, etc.) and interactive tools use ToolEmbed
-  const hasStructuredInput = currentBlock && isStructuredInputTool(currentBlock) && !hasResponse;
-  // Interactive tools also use ToolEmbed
-  const hasInteractiveToolInput = isToolBlock && !hasResponse && currentBlock?.content.toolType === 'interactive';
-  // Combined tool input check
-  const hasToolInput = hasStructuredInput || hasInteractiveToolInput;
   // BUG-449: Exclude Continue button when editing (in-place editing doesn't use input zone)
   const hasContinue = waitingForContinue && currentAnimationComplete && !editingBlockId;
   // Active input check (tool editing is now in-place, not in input zone)
-  const hasActiveInput = hasTextInput || hasToolInput || hasContinue;
+  const hasActiveInput = hasToolInput || hasContinue;
 
   const getCollapsedLabel = () => { // code_id:390
-    if (hasTextInput) return 'Tap to respond';
-    if (hasToolInput) return 'Tap to use tool';
+    if (hasToolInput) return 'Tap to respond';
     if (hasContinue) return 'Tap to continue';
     return 'Tap to continue';
   };
@@ -861,6 +615,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     };
 
     // Always editable - changes auto-save
+    // Pass dataVersion as refreshTrigger so dependent tools refetch when Part A changes
     return (
       <div className="workbook-completed-tool">
         <ToolEmbed
@@ -869,10 +624,15 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           connectionId={data.connectionId}
           initialData={data.response}
           readOnly={false}
+          refreshTrigger={dataVersion}
+          onComplete={() => {
+            // When a completed tool saves, increment dataVersion to refresh dependent tools
+            setDataVersion((v) => v + 1);
+          }}
         />
       </div>
     );
-  }, []);
+  }, [dataVersion]);
 
   return (
     <AppShell
@@ -905,44 +665,12 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
             hasActiveInput={hasActiveInput}
             collapsedLabel={getCollapsedLabel()}
           >
-            {hasTextInput && autoSaveStatus !== 'idle' && (
-              <div className="workbook-autosave">
-                <SaveIndicator status={autoSaveStatus} />
-              </div>
-            )}
-
-            {hasTextInput && (
-              <div className="workbook-input-zone-text">
-                {inputType === 'textarea' ? (
-                  <TextArea
-                    value={inputValue}
-                    onChange={setInputValue}
-                    placeholder={currentBlock?.content.inputConfig?.placeholder || 'Type your response...'}
-                    minRows={3}
-                  />
-                ) : (
-                  <TextInput
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onSubmit={() => handleSaveResponse(inputValue)}
-                    placeholder={currentBlock?.content.inputConfig?.placeholder || 'Type your response...'}
-                  />
-                )}
-                <button
-                  className="button button-primary"
-                  onClick={() => handleSaveResponse(inputValue)}
-                  disabled={isSaving || !inputValue.trim()}
-                  aria-label="Send"
-                >
-                  <SendIcon />
-                </button>
-              </div>
-            )}
-
-            {/* Schema consolidation: all structured inputs and tools use ToolEmbed */}
+            {/* All tools (textarea, text_input, structured, interactive) use ToolEmbed */}
+            {/* Key forces remount when block changes, ensuring fresh data fetch */}
             {hasToolInput && currentBlock && (
               <>
                 <ToolEmbed
+                  key={`tool-${currentBlock.id}`}
                   ref={toolEmbedRef}
                   tool={currentBlock.content as ToolData}
                   stemId={currentBlock.id}
@@ -951,6 +679,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
                 />
                 <div className="workbook-tool-continue">
                   <button
+                    type="button"
                     className="button button-primary"
                     onClick={handleToolContinue}
                     disabled={isToolSaving}
@@ -964,6 +693,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
             {hasContinue && (
               <div className="workbook-continue">
                 <button
+                  type="button"
                   className="button button-primary"
                   onClick={handleContinue}
                   disabled={isAdvancing}

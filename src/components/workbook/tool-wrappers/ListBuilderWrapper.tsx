@@ -59,12 +59,16 @@ export const ListBuilderWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one item)
+  const isValid = useCallback(() => items.length > 0, [items]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   // BUG-380: Read-only mode for completed tools
   if (readOnly) {

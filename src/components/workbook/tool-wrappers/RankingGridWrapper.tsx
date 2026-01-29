@@ -62,12 +62,19 @@ export const RankingGridWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(f
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (items exist and have been ranked)
+  const isValid = useCallback(() => {
+    // Valid if there are items and they have ranks assigned
+    return items.length > 0 && items.every(item => item.rank !== undefined && item.rank !== null);
+  }, [items]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

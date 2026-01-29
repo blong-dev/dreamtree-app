@@ -62,12 +62,18 @@ export const BucketingToolWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (all items have been placed in buckets)
+  const isValid = useCallback(() => {
+    return data.items.length > 0 && data.items.every(item => item.bucketIndex !== null);
+  }, [data.items]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

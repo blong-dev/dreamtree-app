@@ -56,12 +56,18 @@ export const LifeDashboardWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one dimension rated)
+  const isValid = useCallback(() => {
+    return data.work !== null || data.play !== null || data.love !== null || data.health !== null;
+  }, [data]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   if (readOnly) {
     return (

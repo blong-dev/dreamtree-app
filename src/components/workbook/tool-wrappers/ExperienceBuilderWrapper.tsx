@@ -58,12 +58,16 @@ export const ExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolWrapperPr
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input (at least one experience added)
+  const isValid = useCallback(() => experiences.length > 0, [experiences]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   // Read-only mode for completed tools
   if (readOnly) {

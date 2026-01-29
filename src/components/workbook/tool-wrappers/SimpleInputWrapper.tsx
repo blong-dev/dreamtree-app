@@ -143,12 +143,37 @@ export const SimpleInputWrapper = forwardRef<ToolWrapperRef, SimpleInputWrapperP
     onComplete,
   });
 
-  // Expose save method to parent via ref
+  // Check if tool has valid input
+  const isValid = useCallback(() => {
+    switch (toolType) {
+      case 'textarea':
+      case 'text_input':
+        return textValue.trim().length > 0;
+      case 'slider':
+        // Sliders always have a default value, so they're always valid
+        return true;
+      case 'checkbox':
+        // Checkboxes have a boolean state, always valid
+        return true;
+      case 'checkbox_group':
+        // At least one checkbox must be selected
+        return checkboxGroupValue.length > 0;
+      case 'radio':
+        return radioValue !== '';
+      case 'select':
+        return selectValue !== '';
+      default:
+        return true;
+    }
+  }, [toolType, textValue, checkboxGroupValue, radioValue, selectValue]);
+
+  // Expose save and isValid methods to parent via ref
   useImperativeHandle(ref, () => ({
     save: async () => {
       await save();
-    }
-  }), [save]);
+    },
+    isValid,
+  }), [save, isValid]);
 
   // Render the appropriate input based on tool type
   const renderInput = () => { // code_id:922
