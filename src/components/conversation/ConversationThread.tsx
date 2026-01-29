@@ -28,6 +28,8 @@ interface ConversationThreadProps {
   disableAnimation?: boolean;
   /** BUG-380: Callback to render completed tools in conversation history */
   renderTool?: (data: ToolMessageData, messageId: string) => React.ReactNode;
+  /** Always scroll to bottom on new content, regardless of scroll position */
+  alwaysScrollToBottom?: boolean;
 }
 
 // IMP-006: Memoize MessageRenderer to prevent re-renders when messages array changes
@@ -102,6 +104,7 @@ export function ConversationThread({
   isLoadingHistory = false,
   disableAnimation = false,
   renderTool,
+  alwaysScrollToBottom = false,
 }: ConversationThreadProps) { // code_id:28
   const threadRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState<ScrollState>('at-current');
@@ -132,13 +135,19 @@ export function ConversationThread({
 
   // Auto-scroll on new message or when scrollTrigger changes
   useEffect(() => {
-    if (autoScrollOnNew && scrollState === 'at-current' && threadRef.current) {
+    if (!threadRef.current) return;
+
+    // alwaysScrollToBottom: unconditional scroll (for workbook)
+    // autoScrollOnNew: only scroll if user is already at bottom
+    const shouldScroll = alwaysScrollToBottom || (autoScrollOnNew && scrollState === 'at-current');
+
+    if (shouldScroll) {
       threadRef.current.scrollTo({
         top: threadRef.current.scrollHeight,
         behavior: 'smooth',
       });
     }
-  }, [messages.length, autoScrollOnNew, scrollState, scrollTrigger]);
+  }, [messages.length, autoScrollOnNew, alwaysScrollToBottom, scrollState, scrollTrigger]);
 
   // Preserve scroll position when history is prepended
   useEffect(() => {

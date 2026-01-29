@@ -450,11 +450,11 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     });
   }, []);
 
-  // Auto-scroll input zone into view when content changes
+  // Auto-scroll to bottom when content changes
   useEffect(() => {
     // Small delay to let the DOM update first
     const timer = setTimeout(() => {
-      inputZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, 100);
     return () => clearTimeout(timer);
   }, [displayedBlockIndex]);
@@ -656,7 +656,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       >
         <ConversationThread
           messages={messages}
-          autoScrollOnNew={true}
+          alwaysScrollToBottom={true}
           onEditMessage={handleEditMessage}
           animatedMessageIds={animatedMessageIds}
           onMessageAnimated={handleMessageAnimated}
