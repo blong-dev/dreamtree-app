@@ -32,6 +32,7 @@ interface ProfileApiResponse {
     backgroundColor: string;
     textColor: string;
     font: string;
+    textSize: number | null;
     personalityType: string | null;
   };
   skills: Array<{
@@ -70,6 +71,7 @@ export default function ProfilePage() { // code_id:146
   const [backgroundColor, setBackgroundColor] = useState<BackgroundColorId>('ivory');
   const [textColor, setTextColor] = useState<TextColorId>('charcoal');
   const [font, setFont] = useState<FontFamilyId>('inter');
+  const [textSize, setTextSize] = useState<number>(1.0);
   const [skills, setSkills] = useState<SkillDisplay[]>([]);
   const [values, setValues] = useState<RankedItem[]>([]);
 
@@ -93,6 +95,7 @@ export default function ProfilePage() { // code_id:146
         setBackgroundColor(bgColor);
         setTextColor((data.settings.textColor || getValidTextColors(bgColor)[0]) as TextColorId);
         setFont((data.settings.font || 'inter') as FontFamilyId);
+        setTextSize(data.settings.textSize ?? 1.0);
 
         // Transform skills for display
         const transformedSkills: SkillDisplay[] = data.skills.map((s) => ({
@@ -131,14 +134,16 @@ export default function ProfilePage() { // code_id:146
   // Update CSS variables when appearance settings change
   useEffect(() => {
     if (backgroundColor && textColor && font) {
-      applyTheme({ backgroundColor, textColor, font });
+      applyTheme({ backgroundColor, textColor, font, textSize });
     }
-  }, [backgroundColor, textColor, font]);
+  }, [backgroundColor, textColor, font, textSize]);
 
   const handleNavigate = useCallback(
     (id: NavItemId) => {
       setActiveNavItem(id);
-      if (id === 'home') {
+      if (id === 'workbook') {
+        router.push('/workbook');
+      } else if (id === 'home') {
         router.push('/');
       } else if (id === 'tools') {
         router.push('/tools');
@@ -218,6 +223,7 @@ export default function ProfilePage() { // code_id:146
           backgroundColor,
           textColor,
           font,
+          textSize,
         }),
       });
       if (!response.ok) {
@@ -231,7 +237,7 @@ export default function ProfilePage() { // code_id:146
     } finally {
       setIsSavingAppearance(false);
     }
-  }, [backgroundColor, textColor, font, showToast]);
+  }, [backgroundColor, textColor, font, textSize, showToast]);
 
   if (loading) {
     return (
@@ -265,9 +271,11 @@ export default function ProfilePage() { // code_id:146
               backgroundColor={backgroundColor}
               textColor={textColor}
               font={font}
+              textSize={textSize}
               onBackgroundChange={setBackgroundColor}
               onTextColorChange={setTextColor}
               onFontChange={setFont}
+              onTextSizeChange={setTextSize}
             />
             <div className="profile-appearance-actions">
               <button

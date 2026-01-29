@@ -76,12 +76,15 @@ export function DashboardPage({
     backgroundColor: userPreview.backgroundColor,
     textColor: userPreview.textColor,
     font: userPreview.fontFamily,
+    textSize: userPreview.textSize,
   });
 
   const handleNavigate = useCallback(
     (id: NavItemId) => {
       setActiveNavItem(id);
-      if (id === 'contents') {
+      if (id === 'workbook') {
+        router.push('/workbook');
+      } else if (id === 'contents') {
         setShowTOC(true);
       } else if (id === 'profile') {
         router.push('/profile');

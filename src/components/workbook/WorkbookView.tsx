@@ -566,6 +566,10 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Handle navigation
   const handleNavigate = (id: string) => { // code_id:388
     switch (id) {
+      case 'workbook':
+        // Scroll to current block (input zone)
+        inputZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        break;
       case 'contents':
         setTocOpen(true);
         break;

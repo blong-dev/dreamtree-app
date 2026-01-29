@@ -1,4 +1,4 @@
-export type NavItemId = 'home' | 'contents' | 'tools' | 'profile';
+export type NavItemId = 'home' | 'workbook' | 'contents' | 'tools' | 'profile';
 
 export type InputType = 'text' | 'textarea' | 'structured' | 'none';
 

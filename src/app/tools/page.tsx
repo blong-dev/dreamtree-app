@@ -27,6 +27,12 @@ const TOOL_CATEGORIES = [
     title: 'Skills & Strengths',
     tools: [
       {
+        type: 'skills_library' as ToolType,
+        name: 'Skills Library',
+        description: 'Browse all skills and see which you\'ve tagged',
+        isStandalone: true,
+      },
+      {
         type: 'skill_tagger' as ToolType,
         name: 'Skill Tagger',
         description: 'Tag and categorize your skills',
@@ -139,7 +145,9 @@ export default function ToolsIndexPage() { // code_id:157
   const handleNavigate = useCallback(
     (id: NavItemId) => {
       setActiveNavItem(id);
-      if (id === 'home') {
+      if (id === 'workbook') {
+        router.push('/workbook');
+      } else if (id === 'home') {
         router.push('/');
       } else if (id === 'profile') {
         router.push('/profile');

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { NavItem } from './NavItem';
 import { NavItemId } from './types';
 import { HomeIcon, ListIcon, WrenchIcon, UserIcon, AcornIcon } from '../icons';
@@ -21,24 +22,38 @@ export function NavBar({
   onNavigate,
   onExpandTools,
 }: NavBarProps) { // code_id:283
+  const router = useRouter();
+
   return (
     <nav
       className="nav-bar"
       data-position={position}
       aria-label="Main navigation"
     >
-      {/* Brand lockup - only shown on desktop left rail */}
+      {/* Brand lockup - only shown on desktop left rail, links to workbook */}
       {position === 'left' && (
-        <div className="nav-brand" onClick={() => onNavigate('home')}>
+        <div className="nav-brand" onClick={() => router.push('/workbook')}>
           <AcornIcon className="nav-brand-icon" aria-hidden="true" />
           <span className="nav-brand-text">dreamtree</span>
         </div>
       )}
       <ul className="nav-bar-list" role="list">
+        {/* Mobile bottom: Acorn goes to workbook, Home goes to dashboard */}
+        {position === 'bottom' && (
+          <li>
+            <NavItem
+              id="workbook"
+              icon={AcornIcon}
+              label="Workbook"
+              isActive={activeItem === 'workbook'}
+              onClick={() => onNavigate('workbook')}
+            />
+          </li>
+        )}
         <li>
           <NavItem
             id="home"
-            icon={position === 'bottom' ? AcornIcon : HomeIcon}
+            icon={HomeIcon}
             label="Home"
             isActive={activeItem === 'home'}
             onClick={() => onNavigate('home')}
