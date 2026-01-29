@@ -2687,20 +2687,23 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-2);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   cursor: pointer;
 }
 
 .experience-form-checkbox input {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
   margin: 0;
   cursor: pointer;
 }
 
 .experience-form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: var(--space-3);
   padding-top: var(--space-3);
   border-top: var(--border-thin) solid color-mix(in srgb, var(--color-muted) 20%, transparent);
