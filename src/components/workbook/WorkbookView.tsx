@@ -107,7 +107,6 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputZoneRef = useRef<HTMLDivElement>(null);
   const blockContentCache = useRef<Map<number, ContentBlock[]>>(new Map());
-  const animatedMessageIdsRef = useRef<Set<string>>(new Set());
   const isAdvancingRef = useRef(false);
   const toolEmbedRef = useRef<ToolEmbedRef>(null); // Ref to call save() on active tool
   const isToolSavingRef = useRef(false); // Guard against rapid clicks (refs are synchronous)
@@ -122,22 +121,17 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   const exerciseStartTimeRef = useRef<number>(Date.now());
   const lastTrackedExerciseRef = useRef<string>('');
 
-  // Initialize animated message IDs for returning users
-  // Check if user has any progress to detect returning users
-  const isInitializedRef = useRef(false);
-  const hasAnyResponse = initialBlocks.some(b => b.response);
-  if (!isInitializedRef.current && (initialProgress > 0 || hasAnyResponse)) {
-    isInitializedRef.current = true;
-    // Mark ALL loaded blocks as already animated (skip animations on return)
-    // For returning users, the server loads blocks up to their position,
-    // so we skip animation for all of them
-    for (let i = 0; i < initialBlocks.length; i++) {
-      const block = initialBlocks[i];
-      animatedMessageIdsRef.current.add(`block-${block.id}`);
+  // Initialize animated message IDs for returning users using useState initializer
+  // This runs once on mount and creates a stable Set reference
+  const [animatedMessageIds, setAnimatedMessageIds] = useState<Set<string>>(() => {
+    const hasAnyResponse = initialBlocks.some(b => b.response);
+    if (initialProgress > 0 || hasAnyResponse) {
+      // Returning user: mark all loaded blocks as already animated
+      return new Set(initialBlocks.map(b => `block-${b.id}`));
     }
-  } else if (!isInitializedRef.current) {
-    isInitializedRef.current = true;
-  }
+    // New user: start with empty set
+    return new Set();
+  });
 
   // Current active block for input
   // Clamp displayedBlockIndex to valid range to prevent off-by-one errors during rapid skipping
@@ -248,7 +242,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Handle animation completion
   const handleMessageAnimated = useCallback(
     (messageId: string, wasSkipped: boolean) => {
-      animatedMessageIdsRef.current.add(messageId);
+      // Add to animated set (for future reference if needed)
+      setAnimatedMessageIds(prev => new Set(prev).add(messageId));
 
       if (currentBlock?.blockType === 'content' && messageId === `block-${currentBlock.id}`) {
         if (wasSkipped) {
@@ -291,11 +286,11 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     // Check if new block is already animated (returning user)
     if (currentBlock?.blockType === 'content') {
       const contentMsgId = `block-${currentBlock.id}`;
-      if (animatedMessageIdsRef.current.has(contentMsgId)) {
+      if (animatedMessageIds.has(contentMsgId)) {
         setCurrentAnimationComplete(true);
       }
     }
-  }, [displayedBlockIndex, currentBlock]);
+  }, [displayedBlockIndex, currentBlock, animatedMessageIds]);
 
   // Track exercise start when exercise changes
   useEffect(() => {
@@ -663,7 +658,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           messages={messages}
           autoScrollOnNew={true}
           onEditMessage={handleEditMessage}
-          animatedMessageIds={animatedMessageIdsRef.current}
+          animatedMessageIds={animatedMessageIds}
           onMessageAnimated={handleMessageAnimated}
           scrollTrigger={displayedBlockIndex}
           renderTool={renderTool}

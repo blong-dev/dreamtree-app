@@ -1827,13 +1827,96 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   font-size: var(--text-base);
 }
 
+/* Text Size Slider */
+.visuals-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.visuals-slider-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-muted);
+  user-select: none;
+  flex-shrink: 0;
+  width: 1.5em;
+  text-align: center;
+}
+
+.visuals-slider-label-lg {
+  font-size: var(--text-xl);
+}
+
+.visuals-slider-input {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: color-mix(in srgb, var(--color-muted) 25%, transparent);
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-default);
+}
+
+.visuals-slider-input:hover {
+  background: color-mix(in srgb, var(--color-muted) 35%, transparent);
+}
+
+.visuals-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: 3px solid var(--color-bg);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-text) 15%, transparent);
+  transition: transform var(--duration-fast) var(--ease-default),
+              box-shadow var(--duration-fast) var(--ease-default);
+}
+
+.visuals-slider-input::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--color-text) 20%, transparent);
+}
+
+.visuals-slider-input::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: 3px solid var(--color-bg);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-text) 15%, transparent);
+}
+
+.visuals-slider-input:focus::-webkit-slider-thumb {
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-text) 15%, transparent),
+              0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.visuals-slider-input:focus::-moz-range-thumb {
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-text) 15%, transparent),
+              0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.visuals-size-value {
+  font-size: var(--text-xs);
+  font-weight: var(--font-normal);
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+
 /* Color Swatch */
 .color-swatch {
   position: relative;
   width: 48px;
   height: 48px;
   border-radius: var(--radius-full);
-  border: 2px solid transparent;
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-muted) 40%, transparent);
   cursor: pointer;
   display: flex;
   align-items: center;
