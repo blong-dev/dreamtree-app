@@ -24,7 +24,9 @@
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
       "Bash(cmd //c \"taskkill /PID 1164232 /F\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git -C C:dreamtree-app log --oneline --all -20)",
+      "Bash(cd:*)"
     ]
   }
 }
