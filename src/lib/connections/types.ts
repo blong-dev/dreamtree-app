@@ -53,6 +53,7 @@ export type DataSourceType =
   | 'soft_skills'
   | 'all_skills'
   | 'knowledge_skills'
+  | 'custom_skills'
   // Stories and Experiences
   | 'soared_stories'
   | 'experiences'
@@ -149,6 +150,16 @@ export interface RankedSkill {
   category: 'transferable' | 'self_management' | 'knowledge';
   mastery: 1 | 2 | 3 | 4 | 5;
   rank: number;
+}
+
+/**
+ * Custom skill created by user (from Part 1b tasks)
+ * Queries skills table directly, not user_skills
+ */
+export interface CustomSkill {
+  id: string;
+  name: string;
+  mastery: number;
 }
 
 export interface CareerOption {

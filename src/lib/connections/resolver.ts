@@ -17,6 +17,7 @@ import {
   fetchSoftSkills,
   fetchAllSkills,
   fetchKnowledgeSkills,
+  fetchCustomSkills,
   fetchSOAREDStories,
   fetchExperiences,
   fetchFlowActivities,
@@ -202,6 +203,9 @@ export class ConnectionResolver {
 
       case 'knowledge_skills':
         return fetchKnowledgeSkills(this.db, userId);
+
+      case 'custom_skills':
+        return fetchCustomSkills(this.db, userId);
 
       case 'soared_stories':
         return fetchSOAREDStories(this.db, userId, params.filter);

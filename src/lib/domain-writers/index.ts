@@ -679,6 +679,13 @@ async function writeTasksPerExperience(
           .first<{ count: number }>();
 
         if (usageCount && usageCount.count === 0) {
+          // Also delete from user_skills (mastery ratings) to maintain referential integrity
+          await db
+            .prepare('DELETE FROM user_skills WHERE skill_id = ?')
+            .bind(existing.skill_id)
+            .run();
+
+          // Now safe to delete the skill itself
           await db
             .prepare('DELETE FROM skills WHERE id = ?')
             .bind(existing.skill_id)

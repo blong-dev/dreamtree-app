@@ -5,6 +5,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type {
   SOAREDStory,
   RankedSkill,
+  CustomSkill,
   FlowActivity,
   Experience,
   CareerOption,
@@ -117,6 +118,36 @@ export async function fetchKnowledgeSkills(
     category: 'knowledge' as const,
     mastery: row.mastery as 1 | 2 | 3 | 4 | 5,
     rank: row.rank as number,
+  }));
+}
+
+/**
+ * Fetch custom skills created by the user (from Part 1b tasks)
+ * Queries skills table directly (WHERE created_by = user_id)
+ * with LEFT JOIN to user_skills for mastery ratings.
+ *
+ * This is used by Part 1c (SkillMasteryRater) which needs all custom
+ * skills including those that haven't been rated yet.
+ */
+export async function fetchCustomSkills(
+  db: D1Database,
+  userId: string
+): Promise<CustomSkill[]> {
+  const result = await db
+    .prepare(
+      `SELECT s.id, s.name, us.mastery
+       FROM skills s
+       LEFT JOIN user_skills us ON s.id = us.skill_id AND us.user_id = ?
+       WHERE s.created_by = ?
+       ORDER BY s.created_at`
+    )
+    .bind(userId, userId)
+    .all();
+
+  return result.results.map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    mastery: (row.mastery as number | null) ?? 5, // Default to 5 if not rated
   }));
 }
 
