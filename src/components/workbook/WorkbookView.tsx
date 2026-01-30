@@ -174,6 +174,9 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           activityId: block.activityId || 1,
           connectionId: block.connectionId,
           response: block.response,
+          toolType: block.content.toolType,
+          promptText: block.content.promptText,
+          inputConfig: block.content.inputConfig,
         };
         result.push({
           id: `tool-${block.id}`,
@@ -201,10 +204,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       // Unanswered tools - ToolEmbed will render
       setWaitingForContinue(false);
     } else {
-      // Block already answered, advance to next
-      if (displayedBlockIndex < blocks.length) {
-        setDisplayedBlockIndex((prev) => prev + 1);
-      }
+      // Completed tool - no action needed, handleToolComplete handles advancement
+      setWaitingForContinue(false);
     }
   }, [currentBlock, displayedBlockIndex, blocks.length]);
 
@@ -607,6 +608,9 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       name: data.name,
       description: data.description,
       instructions: data.instructions,
+      toolType: data.toolType,
+      promptText: data.promptText,
+      inputConfig: data.inputConfig,
     };
 
     // Always editable - changes auto-save
