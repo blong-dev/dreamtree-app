@@ -1,15 +1,13 @@
 /**
  * User Skills API
  *
- * Returns the current user's custom skills (from Part b tasks)
- * with their current mastery ratings.
- * Used by SkillMasteryRater to pre-populate skills from Part b.
+ * Returns skills from Part b that have active evidence.
+ * Includes both library skills (matched via fuzzy/exact) and custom skills.
+ * Used by SkillMasteryRater (Part c) to pre-populate skills from Part b.
  */
 
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth';
-import { createDb } from '@/lib/db';
-import '@/types/database';
 
 interface SkillRow {
   id: string;
@@ -17,20 +15,20 @@ interface SkillRow {
   mastery: number | null;
 }
 
-export const GET = withAuth(async (_request, { userId, db: rawDb }) => {
+export const GET = withAuth(async (_request, { userId, db }) => {
   try {
-    const db = createDb(rawDb);
-
-    // Get custom skills created by this user, with their current mastery if set
-    const result = await db.raw
+    // Get skills that have active evidence from Part b (experience_task)
+    // This includes both library skills and custom skills
+    const result = await db
       .prepare(
-        `SELECT s.id, s.name, us.mastery
-         FROM skills s
-         LEFT JOIN user_skills us ON s.id = us.skill_id AND us.user_id = ?
-         WHERE s.created_by = ?
-         ORDER BY s.created_at`
+        `SELECT DISTINCT s.id, s.name, us.mastery
+         FROM user_skills us
+         JOIN skills s ON us.skill_id = s.id
+         WHERE us.user_id = ?
+           AND us.evidence_count > 0
+         ORDER BY s.name`
       )
-      .bind(userId, userId)
+      .bind(userId)
       .all<SkillRow>();
 
     const skills = (result.results || []).map((row) => ({

@@ -122,12 +122,12 @@ export async function fetchKnowledgeSkills(
 }
 
 /**
- * Fetch custom skills created by the user (from Part 1b tasks)
- * Only returns skills with active evidence (evidence_count > 0).
- * Skills removed from experiences will no longer appear here.
+ * Fetch skills from Part 1b that have active evidence.
+ * Includes both library skills (matched via fuzzy/exact) and custom skills.
+ * Skills removed from experiences (evidence_count = 0) won't appear.
  *
- * This is used by Part 1c (SkillMasteryRater) which needs all custom
- * skills including those that haven't been rated yet.
+ * This is used by Part 1c (SkillMasteryRater) to show all skills
+ * the user added in Part 1b, regardless of whether they're library or custom.
  */
 export async function fetchCustomSkills(
   db: D1Database,
@@ -136,12 +136,12 @@ export async function fetchCustomSkills(
   const result = await db
     .prepare(
       `SELECT s.id, s.name, us.mastery
-       FROM skills s
-       JOIN user_skills us ON s.id = us.skill_id AND us.user_id = ?
-       WHERE s.created_by = ? AND us.evidence_count > 0
-       ORDER BY s.created_at`
+       FROM user_skills us
+       JOIN skills s ON us.skill_id = s.id
+       WHERE us.user_id = ? AND us.evidence_count > 0
+       ORDER BY s.name`
     )
-    .bind(userId, userId)
+    .bind(userId)
     .all();
 
   return result.results.map((row) => ({
