@@ -215,68 +215,68 @@ export const POST = withAuth(async (request, { userId, db: rawDb, sessionId }) =
 
       // If there's a next block, fetch it
       let nextBlock: BlockWithResponse | null = null;
-      const nextSequence = currentSeq + 1;
 
       // Schema consolidation: prompts table removed, all inputs are now tools
-      if (nextSequence <= totalBlocks) {
-        const nextStemRow = await db.raw
-          .prepare(`
-            SELECT
-              s.id,
-              s.part,
-              s.module,
-              s.exercise,
-              s.activity,
-              s.sequence,
-              s.block_type,
-              s.content_id,
-              s.connection_id,
-              CASE s.block_type
-                WHEN 'content' THEN json_object(
-                  'id', cb.id,
-                  'type', cb.content_type,
-                  'text', cb.content
-                )
-                WHEN 'tool' THEN json_object(
-                  'id', t.id,
-                  'name', t.name,
-                  'description', t.description,
-                  'instructions', t.instructions,
-                  'toolType', t.tool_type,
-                  'promptText', t.prompt_text,
-                  'inputConfig', json(t.input_config)
-                )
-              END as content_json
-            FROM stem s
-            LEFT JOIN content_blocks cb ON s.block_type = 'content' AND s.content_id = cb.id AND cb.is_active = 1
-            LEFT JOIN tools t ON s.block_type = 'tool' AND s.content_id = t.id AND t.is_active = 1
-            WHERE s.sequence = ? AND s.part <= 2
-          `)
-          .bind(nextSequence)
-          .first<StemRow>();
+      // Use sequence > currentSeq to skip any gaps in the sequence
+      const nextStemRow = await db.raw
+        .prepare(`
+          SELECT
+            s.id,
+            s.part,
+            s.module,
+            s.exercise,
+            s.activity,
+            s.sequence,
+            s.block_type,
+            s.content_id,
+            s.connection_id,
+            CASE s.block_type
+              WHEN 'content' THEN json_object(
+                'id', cb.id,
+                'type', cb.content_type,
+                'text', cb.content
+              )
+              WHEN 'tool' THEN json_object(
+                'id', t.id,
+                'name', t.name,
+                'description', t.description,
+                'instructions', t.instructions,
+                'toolType', t.tool_type,
+                'promptText', t.prompt_text,
+                'inputConfig', json(t.input_config)
+              )
+            END as content_json
+          FROM stem s
+          LEFT JOIN content_blocks cb ON s.block_type = 'content' AND s.content_id = cb.id AND cb.is_active = 1
+          LEFT JOIN tools t ON s.block_type = 'tool' AND s.content_id = t.id AND t.is_active = 1
+          WHERE s.sequence > ? AND s.part <= 2
+          ORDER BY s.sequence ASC
+          LIMIT 1
+        `)
+        .bind(currentSeq)
+        .first<StemRow>();
 
-        if (nextStemRow) {
-          let content: BlockWithResponse['content'] = {};
-          try {
-            content = JSON.parse(nextStemRow.content_json);
-          } catch {
-            content = {};
-          }
-
-          const nextExerciseId = `${nextStemRow.part}.${nextStemRow.module}.${nextStemRow.exercise}`;
-
-          nextBlock = {
-            id: nextStemRow.id,
-            sequence: nextStemRow.sequence,
-            exerciseId: nextExerciseId,
-            blockType: nextStemRow.block_type as 'content' | 'tool',
-            activityId: nextStemRow.activity,
-            connectionId: nextStemRow.connection_id,
-            content,
-            response: null,
-            responseId: null,
-          };
+      if (nextStemRow) {
+        let content: BlockWithResponse['content'] = {};
+        try {
+          content = JSON.parse(nextStemRow.content_json);
+        } catch {
+          content = {};
         }
+
+        const nextExerciseId = `${nextStemRow.part}.${nextStemRow.module}.${nextStemRow.exercise}`;
+
+        nextBlock = {
+          id: nextStemRow.id,
+          sequence: nextStemRow.sequence,
+          exerciseId: nextExerciseId,
+          blockType: nextStemRow.block_type as 'content' | 'tool',
+          activityId: nextStemRow.activity,
+          connectionId: nextStemRow.connection_id,
+          content,
+          response: null,
+          responseId: null,
+        };
       }
 
       return NextResponse.json({
@@ -286,7 +286,7 @@ export const POST = withAuth(async (request, { userId, db: rawDb, sessionId }) =
         updated: !!existing,
         newProgress: currentSeq,
         nextBlock,
-        hasMore: nextSequence < totalBlocks,
+        hasMore: nextStemRow ? nextStemRow.sequence < totalBlocks : false,
       });
     }
 
@@ -438,69 +438,69 @@ export const POST = withAuth(async (request, { userId, db: rawDb, sessionId }) =
     const totalBlocks = totalResult?.total || 0;
 
     // If there's a next block, fetch it
+    // Use sequence > currentSequence to skip any gaps in the sequence
     let nextBlock: BlockWithResponse | null = null;
-    const nextSequence = currentSequence + 1;
 
     // Schema consolidation: prompts table removed, all inputs are now tools
-    if (nextSequence <= totalBlocks) {
-      const nextStemRow = await db.raw
-        .prepare(`
-          SELECT
-            s.id,
-            s.part,
-            s.module,
-            s.exercise,
-            s.activity,
-            s.sequence,
-            s.block_type,
-            s.content_id,
-            s.connection_id,
-            CASE s.block_type
-              WHEN 'content' THEN json_object(
-                'id', cb.id,
-                'type', cb.content_type,
-                'text', cb.content
-              )
-              WHEN 'tool' THEN json_object(
-                'id', t.id,
-                'name', t.name,
-                'description', t.description,
-                'instructions', t.instructions,
-                'toolType', t.tool_type,
-                'promptText', t.prompt_text,
-                'inputConfig', json(t.input_config)
-              )
-            END as content_json
-          FROM stem s
-          LEFT JOIN content_blocks cb ON s.block_type = 'content' AND s.content_id = cb.id AND cb.is_active = 1
-          LEFT JOIN tools t ON s.block_type = 'tool' AND s.content_id = t.id AND t.is_active = 1
-          WHERE s.sequence = ? AND s.part <= 2
-        `)
-        .bind(nextSequence)
-        .first<StemRow>();
+    const nextStemRow = await db.raw
+      .prepare(`
+        SELECT
+          s.id,
+          s.part,
+          s.module,
+          s.exercise,
+          s.activity,
+          s.sequence,
+          s.block_type,
+          s.content_id,
+          s.connection_id,
+          CASE s.block_type
+            WHEN 'content' THEN json_object(
+              'id', cb.id,
+              'type', cb.content_type,
+              'text', cb.content
+            )
+            WHEN 'tool' THEN json_object(
+              'id', t.id,
+              'name', t.name,
+              'description', t.description,
+              'instructions', t.instructions,
+              'toolType', t.tool_type,
+              'promptText', t.prompt_text,
+              'inputConfig', json(t.input_config)
+            )
+          END as content_json
+        FROM stem s
+        LEFT JOIN content_blocks cb ON s.block_type = 'content' AND s.content_id = cb.id AND cb.is_active = 1
+        LEFT JOIN tools t ON s.block_type = 'tool' AND s.content_id = t.id AND t.is_active = 1
+        WHERE s.sequence > ? AND s.part <= 2
+        ORDER BY s.sequence ASC
+        LIMIT 1
+      `)
+      .bind(currentSequence)
+      .first<StemRow>();
 
-      if (nextStemRow) {
-        let content: BlockWithResponse['content'] = {};
-        try {
-          content = JSON.parse(nextStemRow.content_json);
-        } catch {
-          content = {};
-        }
-
-        const nextExerciseId = `${nextStemRow.part}.${nextStemRow.module}.${nextStemRow.exercise}`;
-
-        nextBlock = {
-          id: nextStemRow.id,
-          sequence: nextStemRow.sequence,
-          exerciseId: nextExerciseId,
-          blockType: nextStemRow.block_type as 'content' | 'tool',
-          activityId: nextStemRow.activity,
-          connectionId: nextStemRow.connection_id,
-          content,
-          response: null,
-          responseId: null,
-        };
+    if (nextStemRow) {
+      let content: BlockWithResponse['content'] = {};
+      try {
+        content = JSON.parse(nextStemRow.content_json);
+      } catch {
+        content = {};
       }
+
+      const nextExerciseId = `${nextStemRow.part}.${nextStemRow.module}.${nextStemRow.exercise}`;
+
+      nextBlock = {
+        id: nextStemRow.id,
+        sequence: nextStemRow.sequence,
+        exerciseId: nextExerciseId,
+        blockType: nextStemRow.block_type as 'content' | 'tool',
+        activityId: nextStemRow.activity,
+        connectionId: nextStemRow.connection_id,
+        content,
+        response: null,
+        responseId: null,
+      };
     }
 
     return NextResponse.json({
@@ -510,7 +510,7 @@ export const POST = withAuth(async (request, { userId, db: rawDb, sessionId }) =
       updated: !!existing,
       newProgress: currentSequence,
       nextBlock,
-      hasMore: nextSequence < totalBlocks,
+      hasMore: nextStemRow ? nextStemRow.sequence < totalBlocks : false,
     });
   } catch (error) {
     console.error('Error saving response:', error);

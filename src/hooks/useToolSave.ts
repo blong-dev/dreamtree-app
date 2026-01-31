@@ -54,6 +54,7 @@ export function useToolSave({
 
   // Manual save (Continue button)
   const save = useCallback(async () => {
+    console.log('[useToolSave] Manual save called for stemId:', stemId);
     // Clear pending auto-save (IMP-041)
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
@@ -78,7 +79,9 @@ export function useToolSave({
       }
 
       const data: ToolSaveResponse = await response.json();
+      console.log('[useToolSave] Calling onComplete with:', { nextBlock: data.nextBlock ? 'exists' : 'null', hasMore: data.hasMore });
       onComplete(data);
+      console.log('[useToolSave] onComplete returned');
     } catch (err) {
       console.error('Error saving tool:', err);
       // IMP-025: Differentiate error types
@@ -112,6 +115,7 @@ export function useToolSave({
     }
 
     autoSaveTimeout.current = setTimeout(async () => {
+      console.log('[useToolSave] Auto-save triggered for stemId:', stemId);
       try {
         const response = await fetch('/api/workbook/response', {
           method: 'POST',

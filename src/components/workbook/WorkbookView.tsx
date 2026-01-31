@@ -191,6 +191,18 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   // Determine what UI to show based on current block
   useEffect(() => {
+    console.log('[WorkbookView] UI state check:', {
+      displayedBlockIndex,
+      blocksLength: blocks.length,
+      currentBlockId: currentBlock?.id,
+      currentBlockType: currentBlock?.blockType,
+      hasResponse: !!currentBlock?.response,
+      hasMore,
+      waitingForContinue,
+      currentAnimationComplete,
+      editingBlockId,
+    });
+
     if (!currentBlock) {
       setWaitingForContinue(false);
       return;
@@ -200,13 +212,16 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       // Content blocks show Continue button after animation
       setWaitingForContinue(true);
     } else if (currentBlock.blockType === 'tool' && !currentBlock.response) {
-      // Unanswered tools - ToolEmbed will render
+      // Unanswered tools - ToolEmbed will render with its own Continue button
       setWaitingForContinue(false);
+    } else if (currentBlock.blockType === 'tool' && currentBlock.response) {
+      // Completed tool that hasn't advanced yet (e.g., after auto-save + refresh)
+      // Show Continue button so user can advance to next block
+      setWaitingForContinue(true);
     } else {
-      // Completed tool - no action needed, handleToolComplete handles advancement
       setWaitingForContinue(false);
     }
-  }, [currentBlock, displayedBlockIndex, blocks.length]);
+  }, [currentBlock, displayedBlockIndex, blocks.length, hasMore]);
 
   // Fetch next block from server when we've exhausted loaded blocks
   const fetchNextBlock = useCallback(async () => {
@@ -350,6 +365,11 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
         setCurrentAnimationComplete(true);
       }
     }
+
+    // Completed tools don't have animations - mark as complete immediately
+    if (currentBlock?.blockType === 'tool' && currentBlock.response) {
+      setCurrentAnimationComplete(true);
+    }
   }, [displayedBlockIndex, currentBlock, animatedMessageIds]);
 
   // Track exercise start when exercise changes
@@ -442,6 +462,11 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Updated: Now uses responseText from API instead of marker hack
   const handleToolComplete = useCallback(
     (data: { id: string; stemId?: number; responseText?: string; updated: boolean; newProgress?: number; nextBlock?: unknown | null; hasMore?: boolean }) => {
+      console.log('[handleToolComplete] Called with:', {
+        nextBlock: data.nextBlock ? 'exists' : 'null',
+        hasMore: data.hasMore,
+        newProgress: data.newProgress,
+      });
       if (!currentBlock || currentBlock.blockType !== 'tool') return;
 
       // Update block with actual response data (not marker)

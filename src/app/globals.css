@@ -670,7 +670,7 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
    MESSAGE CONTENT (DreamTree)
    ============================================================ */
 .message-content {
-  max-width: var(--message-max-width);
+  max-width: var(--content-max-width);
 }
 
 .message-content p {

@@ -58,7 +58,6 @@ export const GET = withAuth(async (request, { db: rawDb }) => {
     }
 
     const db = createDb(rawDb);
-    const nextSequence = afterSequence + 1;
 
     // Get total blocks count
     const totalResult = await db.raw
@@ -66,7 +65,8 @@ export const GET = withAuth(async (request, { db: rawDb }) => {
       .first<{ total: number }>();
     const totalBlocks = totalResult?.total || 0;
 
-    if (nextSequence > totalBlocks) {
+    // Early exit if we're already past the last block
+    if (afterSequence >= totalBlocks) {
       return NextResponse.json({
         nextBlock: null,
         hasMore: false,
@@ -74,6 +74,7 @@ export const GET = withAuth(async (request, { db: rawDb }) => {
     }
 
     // Fetch the next block (schema consolidation: prompts table removed)
+    // Use sequence > ? to skip any gaps in the sequence
     const nextStemRow = await db.raw
       .prepare(`
         SELECT
@@ -105,9 +106,11 @@ export const GET = withAuth(async (request, { db: rawDb }) => {
         FROM stem s
         LEFT JOIN content_blocks cb ON s.block_type = 'content' AND s.content_id = cb.id AND cb.is_active = 1
         LEFT JOIN tools t ON s.block_type = 'tool' AND s.content_id = t.id AND t.is_active = 1
-        WHERE s.sequence = ? AND s.part <= 2
+        WHERE s.sequence > ? AND s.part <= 2
+        ORDER BY s.sequence ASC
+        LIMIT 1
       `)
-      .bind(nextSequence)
+      .bind(afterSequence)
       .first<StemRow>();
 
     if (!nextStemRow) {
@@ -140,7 +143,7 @@ export const GET = withAuth(async (request, { db: rawDb }) => {
 
     return NextResponse.json({
       nextBlock,
-      hasMore: nextSequence < totalBlocks,
+      hasMore: nextStemRow.sequence < totalBlocks,
     });
   } catch (error) {
     console.error('Error fetching next block:', error);
