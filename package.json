@@ -23,6 +23,7 @@
     "@atproto/oauth-client": "^0.5.13",
     "@opennextjs/cloudflare": "^1.14.8",
     "bcryptjs": "^3.0.3",
+    "fuse.js": "^7.1.0",
     "nanoid": "^5.1.6",
     "next": "15.1.6",
     "react": "^19.0.0",

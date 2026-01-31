@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useId, KeyboardEvent, ReactNode } from 'react';
+import { useState, useId, useRef, KeyboardEvent, ReactNode, useCallback } from 'react';
 import type { ExperienceEntry } from './ExperienceBuilder';
+import { SkillInput, type SkillMatch } from '@/components/forms/SkillInput';
 
 export interface TaskEntry {
   id: string;
   value: string;
+  // Match metadata from SkillInput (for domain writer)
+  skillId?: string | null;      // Existing skill ID if matched
+  matchType?: 'exact' | 'fuzzy' | 'custom';
+  matchScore?: number;          // 0-1 confidence
+  inputValue?: string;          // Original input before autocomplete
 }
 
 export interface ExperienceWithTasks {
@@ -156,34 +162,50 @@ function ExperienceTaskSection({
   renderContext,
 }: ExperienceTaskSectionProps) { // code_id:1021
   const [newTaskValue, setNewTaskValue] = useState('');
+  // Track pending skill match metadata (set when SkillInput resolves)
+  const pendingMatch = useRef<SkillMatch | null>(null);
 
   const generateId = () => `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-  const addTask = () => {
-    if (!newTaskValue.trim() || disabled) return;
+  const addTaskWithMatch = useCallback((match: SkillMatch) => {
+    if (!match.value.trim() || disabled) return;
 
     const newTask: TaskEntry = {
       id: generateId(),
-      value: newTaskValue.trim(),
+      value: match.value.trim(),
+      skillId: match.skillId,
+      matchType: match.matchType,
+      matchScore: match.matchScore,
+      inputValue: match.inputValue,
     };
 
     onTasksChange([...tasks, newTask]);
     setNewTaskValue('');
-  };
+    pendingMatch.current = null;
+  }, [disabled, onTasksChange, tasks]);
+
+  const handleSkillResolved = useCallback((match: SkillMatch) => {
+    // Store the match and add the task
+    pendingMatch.current = match;
+    if (match.value.trim()) {
+      addTaskWithMatch(match);
+    }
+  }, [addTaskWithMatch]);
 
   const updateTask = (taskId: string, value: string) => {
-    onTasksChange(tasks.map(t => t.id === taskId ? { ...t, value } : t));
+    // When editing, we lose match metadata (it becomes custom)
+    onTasksChange(tasks.map(t => t.id === taskId ? {
+      ...t,
+      value,
+      skillId: undefined,
+      matchType: 'custom' as const,
+      matchScore: 0,
+      inputValue: value,
+    } : t));
   };
 
   const removeTask = (taskId: string) => {
     onTasksChange(tasks.filter(t => t.id !== taskId));
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTask();
-    }
   };
 
   const typeLabel = getTypeLabel(experience.experienceType);
@@ -232,24 +254,13 @@ function ExperienceTaskSection({
           </ul>
 
           <div className="experience-task-add">
-            <input
-              type="text"
-              className="experience-task-add-input"
-              placeholder={labels.placeholder}
+            <SkillInput
               value={newTaskValue}
-              onChange={(e) => setNewTaskValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={() => newTaskValue.trim() && addTask()}
+              onChange={setNewTaskValue}
+              onSkillResolved={handleSkillResolved}
+              placeholder={labels.placeholder}
               disabled={disabled}
             />
-            <button
-              type="button"
-              className="experience-task-add-button"
-              onClick={addTask}
-              disabled={disabled || !newTaskValue.trim()}
-            >
-              Add
-            </button>
           </div>
         </div>
       )}

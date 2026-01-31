@@ -661,6 +661,11 @@ async function writeExperiences(
 interface TaskEntry {
   id: string;
   value: string;
+  // Match metadata from SkillInput (for skill_evidence)
+  skillId?: string | null;      // Existing skill ID if matched
+  matchType?: 'exact' | 'fuzzy' | 'custom';
+  matchScore?: number;          // 0-1 confidence
+  inputValue?: string;          // Original input before autocomplete
 }
 
 interface ExperienceWithTasks {
@@ -768,20 +773,31 @@ async function writeTasksPerExperience(
       const taskNameLower = task.value.toLowerCase();
 
       if (!existingForExp.has(taskNameLower)) {
-        // Need to create evidence. First, find or create the skill in skills table.
-        let skillId = customSkillsByName.get(taskNameLower) || newSkillsCreated.get(taskNameLower);
+        // Determine skill ID: use provided skillId (from fuzzy match) or find/create custom
+        let skillId: string;
+        const matchType = task.matchType || 'custom';
+        const matchScore = task.matchScore ?? 0;
+        const inputValue = task.inputValue || task.value;
 
-        if (!skillId) {
-          // Create new custom skill
-          skillId = nanoid();
-          statements.push(
-            db.prepare(`
-              INSERT INTO skills (id, name, category, is_custom, created_by, review_status, created_at)
-              VALUES (?, ?, 'transferable', 1, ?, 'pending', ?)
-            `).bind(skillId, task.value, userId, now)
-          );
-          newSkillsCreated.set(taskNameLower, skillId);
-          customSkillsByName.set(taskNameLower, skillId);
+        if (task.skillId && (matchType === 'exact' || matchType === 'fuzzy')) {
+          // Use existing library skill from fuzzy/exact match
+          skillId = task.skillId;
+        } else {
+          // Custom skill: check if we already have one with this name
+          skillId = customSkillsByName.get(taskNameLower) || newSkillsCreated.get(taskNameLower) || '';
+
+          if (!skillId) {
+            // Create new custom skill
+            skillId = nanoid();
+            statements.push(
+              db.prepare(`
+                INSERT INTO skills (id, name, category, is_custom, created_by, review_status, created_at)
+                VALUES (?, ?, 'transferable', 1, ?, 'pending', ?)
+              `).bind(skillId, task.value, userId, now)
+            );
+            newSkillsCreated.set(taskNameLower, skillId);
+            customSkillsByName.set(taskNameLower, skillId);
+          }
         }
 
         // Find or create user_skill record
@@ -807,12 +823,12 @@ async function writeTasksPerExperience(
           );
         }
 
-        // Create skill_evidence record
+        // Create skill_evidence record with match metadata
         statements.push(
           db.prepare(`
-            INSERT INTO skill_evidence (id, user_skill_id, source_type, source_id, input_value, match_type, is_active, created_at)
-            VALUES (?, ?, 'experience_task', ?, ?, 'custom', 1, ?)
-          `).bind(nanoid(), userSkillId, experienceId, task.value, now)
+            INSERT INTO skill_evidence (id, user_skill_id, source_type, source_id, input_value, match_type, match_score, is_active, created_at)
+            VALUES (?, ?, 'experience_task', ?, ?, ?, ?, 1, ?)
+          `).bind(nanoid(), userSkillId, experienceId, inputValue, matchType, matchScore, now)
         );
       }
     }
