@@ -59,7 +59,7 @@ export function WorkbookInputZone({
   }, [hasActiveInput]);
 
   const scrollToInput = () => { // code_id:868
-    inputZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   return (

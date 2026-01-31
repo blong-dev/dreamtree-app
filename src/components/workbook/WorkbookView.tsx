@@ -440,10 +440,19 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
   const handleExpandInputZone = useCallback(() => {
     setInputZoneCollapsed(false);
-    scrollContainerRef.current?.scrollTo({
-      top: scrollContainerRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
+    // Wait for React to render and browser to finish layout of expanded input zone
+    setTimeout(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    }, 50);
+  }, []);
+
+  // Check if window is scrolled to (or near) the bottom of the page
+  const isScrolledToBottom = useCallback(() => {
+    const threshold = 50; // pixels from bottom
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    return documentHeight - scrollTop - windowHeight < threshold;
   }, []);
 
   // Auto-scroll to bottom when content changes
@@ -468,15 +477,15 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
       if (isInputFocused) return;
 
-      // For content blocks - just continue
-      if (waitingForContinue && currentAnimationComplete) {
+      // For content blocks - only continue if scrolled to bottom
+      if (waitingForContinue && currentAnimationComplete && isScrolledToBottom()) {
         e.preventDefault();
         handleContinue();
         return;
       }
 
-      // For tool blocks - validate before continuing
-      if (hasToolInput && !isToolSaving) {
+      // For tool blocks - validate before continuing (also requires scrolled to bottom)
+      if (hasToolInput && !isToolSaving && isScrolledToBottom()) {
         e.preventDefault();
         handleToolContinue();
       }
@@ -484,11 +493,14 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [waitingForContinue, currentAnimationComplete, handleContinue, hasToolInput, isToolSaving, handleToolContinue]);
+  }, [waitingForContinue, currentAnimationComplete, handleContinue, hasToolInput, isToolSaving, handleToolContinue, isScrolledToBottom]);
 
-  // Click-to-continue handler
+  // Click-to-continue handler (mobile/touch devices only)
   const handleContentAreaClick = useCallback(
     (e: React.MouseEvent) => {
+      // Only allow click-to-continue on touch devices
+      if (!('ontouchstart' in window)) return;
+
       if (!waitingForContinue || !currentAnimationComplete) return;
 
       const target = e.target as HTMLElement;
@@ -560,7 +572,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     switch (id) {
       case 'workbook':
         // Scroll to current block (input zone)
-        inputZoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         break;
       case 'contents':
         setTocOpen(true);
