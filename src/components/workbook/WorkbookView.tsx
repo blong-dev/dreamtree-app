@@ -234,6 +234,57 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     }
   }, [blocks]);
 
+  // Fetch next block and auto-advance only if it's a tool
+  // Used when animation completes but next block isn't loaded yet
+  const fetchNextBlockWithAutoAdvance = useCallback(async () => {
+    if (isAdvancingRef.current) return;
+    isAdvancingRef.current = true;
+    setIsAdvancing(true);
+
+    const lastBlock = blocks[blocks.length - 1];
+    if (!lastBlock) {
+      isAdvancingRef.current = false;
+      setIsAdvancing(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/workbook/next?after=${lastBlock.sequence}`);
+      if (!response.ok) {
+        // Failed to fetch - show Continue as fallback
+        setCurrentAnimationComplete(true);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.nextBlock) {
+        // Add block to array
+        setBlocks((prev) => [...prev, data.nextBlock]);
+
+        // Check block type and decide
+        if (data.nextBlock.blockType === 'tool') {
+          // Tool - auto-advance
+          setDisplayedBlockIndex((prev) => prev + 1);
+        } else {
+          // Content - show Continue button (block is now loaded for when they click)
+          setCurrentAnimationComplete(true);
+        }
+      } else {
+        // No more blocks
+        setCurrentAnimationComplete(true);
+      }
+      setHasMore(data.hasMore);
+    } catch (error) {
+      console.error('Error fetching next block:', error);
+      setCurrentAnimationComplete(true);
+    } finally {
+      setTimeout(() => {
+        isAdvancingRef.current = false;
+        setIsAdvancing(false);
+      }, 200);
+    }
+  }, [blocks]);
+
   // Handle animation completion
   const handleMessageAnimated = useCallback(
     (messageId: string, wasSkipped: boolean) => {
@@ -245,8 +296,10 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
         // displayedBlockIndex is 1-indexed, so blocks[displayedBlockIndex] gets the next block
         const nextBlock = blocks[displayedBlockIndex];
         const nextIsTool = nextBlock?.blockType === 'tool';
+        const nextIsContent = nextBlock?.blockType === 'content';
 
         if (wasSkipped || nextIsTool) {
+          // User skipped OR next is tool - auto-advance
           // Guard against rapid skips (same pattern as handleContinue)
           if (isAdvancingRef.current) return;
           isAdvancingRef.current = true;
@@ -271,13 +324,19 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
               setIsAdvancing(false);
             }, 200);
           }
-        } else {
+        } else if (nextIsContent) {
           // Next block is content - wait for Continue button
+          setCurrentAnimationComplete(true);
+        } else if (hasMore) {
+          // Next block unknown but more exist - fetch to determine type
+          fetchNextBlockWithAutoAdvance();
+        } else {
+          // No more blocks
           setCurrentAnimationComplete(true);
         }
       }
     },
-    [currentBlock, displayedBlockIndex, blocks.length, hasMore, fetchNextBlock]
+    [currentBlock, displayedBlockIndex, blocks, hasMore, fetchNextBlock, fetchNextBlockWithAutoAdvance]
   );
 
   // Reset animation states when block changes
