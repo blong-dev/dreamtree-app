@@ -22,7 +22,7 @@ interface FuseResult {
   score?: number;
 }
 
-const FUZZY_THRESHOLD = 0.8; // Scores >= 0.8 are auto-matched
+const FUZZY_THRESHOLD = 0.9; // Scores >= 0.9 are auto-matched
 const FUSE_OPTIONS = {
   keys: ['name'],
   threshold: 0.4, // Show suggestions up to 0.4 distance
@@ -88,21 +88,24 @@ export function useSkillsLibrary() {
     }
 
     // Fuzzy search
-    const results = fuse.search(query, { limit });
+    const results = fuse.search(query, { limit: limit * 2 }); // fetch extra, filter below
 
-    return results.map((result: FuseResult) => {
-      // Fuse score is 0 (perfect) to 1 (worst), invert for our 0-1 scale
-      const fuseScore = result.score ?? 0;
-      const matchScore = 1 - fuseScore;
+    return results
+      .map((result: FuseResult) => {
+        // Fuse score is 0 (perfect) to 1 (worst), invert for our 0-1 scale
+        const fuseScore = result.score ?? 0;
+        const matchScore = 1 - fuseScore;
 
-      return {
-        value: result.item.name,
-        skillId: result.item.id,
-        matchType: 'fuzzy' as const,
-        matchScore,
-        inputValue: query,
-      };
-    });
+        return {
+          value: result.item.name,
+          skillId: result.item.id,
+          matchType: 'fuzzy' as const,
+          matchScore,
+          inputValue: query,
+        };
+      })
+      .filter(match => match.matchScore >= 0.7)
+      .slice(0, limit);
   }, [skills, fuse]);
 
   /**
@@ -110,6 +113,14 @@ export function useSkillsLibrary() {
    * Called on blur or when user presses Enter without selecting from dropdown
    * @param input - Raw user input
    * @returns SkillMatch with best match or custom skill marker
+   */
+  /**
+   * Resolve user input to a skill match (called on Enter/blur without dropdown selection)
+   *
+   * IMPORTANT: This only auto-links on EXACT match. Fuzzy matches require explicit
+   * dropdown selection. This separates autocomplete (fuzzy) from auto-linking (exact).
+   *
+   * Display value is NEVER changed here - user's input is preserved.
    */
   const resolve = useCallback((input: string): SkillMatch => {
     const trimmed = input.trim();
@@ -123,22 +134,21 @@ export function useSkillsLibrary() {
       };
     }
 
-    const matches = search(trimmed, 1);
+    // Only auto-link on EXACT match (case-insensitive)
+    const queryLower = trimmed.toLowerCase();
+    const exactMatch = skills.find(s => s.name.toLowerCase() === queryLower);
 
-    // If we have a good match (exact or high-confidence fuzzy), use it
-    if (matches.length > 0) {
-      const best = matches[0];
-
-      // Exact match or high confidence fuzzy -> use library skill
-      if (best.matchType === 'exact' || best.matchScore >= FUZZY_THRESHOLD) {
-        return {
-          ...best,
-          inputValue: input, // Preserve original input for harvesting
-        };
-      }
+    if (exactMatch) {
+      return {
+        value: trimmed,  // Keep user's input as display value
+        skillId: exactMatch.id,
+        matchType: 'exact',
+        matchScore: 1.0,
+        inputValue: input,
+      };
     }
 
-    // No good match -> custom skill (will be created on save)
+    // No exact match -> custom skill (fuzzy matches require dropdown selection)
     return {
       value: trimmed,
       skillId: null,
@@ -146,7 +156,7 @@ export function useSkillsLibrary() {
       matchScore: 0,
       inputValue: input,
     };
-  }, [search]);
+  }, [skills]);
 
   return {
     skills,

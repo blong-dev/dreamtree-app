@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
-import { getDB } from '@/lib/db/connection';
-import { createDb } from '@/lib/db';
+import { withAuth } from '@/lib/auth';
 
 
-export async function GET() { // code_id:137
+export const GET = withAuth(async (_request, { userId, db }) => {
   try {
-    const db = createDb(getDB());
-
-    // Fetch all skills from the database using raw query
-    const result = await db.raw
+    // Fetch library skills + approved custom + user's own custom skills
+    const result = await db
       .prepare(
         `SELECT id, name, category
          FROM skills
-         WHERE is_custom = 0 OR review_status = 'approved'
+         WHERE is_custom = 0
+            OR review_status = 'approved'
+            OR created_by = ?
          ORDER BY category, name`
       )
-      .all();
+      .bind(userId)
+      .all<{ id: string; name: string; category: string }>();
 
-    const skills = (result.results || []).map((row: Record<string, unknown>) => ({
-      id: row.id as string,
-      name: row.name as string,
-      category: row.category as string,
+    const skills = (result.results || []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
       mastery: 0, // Default mastery - will be overridden by user data
     }));
 
@@ -32,4 +32,4 @@ export async function GET() { // code_id:137
       { status: 500 }
     );
   }
-}
+});

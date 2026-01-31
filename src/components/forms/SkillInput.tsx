@@ -144,11 +144,8 @@ export function SkillInput({
   const handleBlur = () => {
     // Small delay to allow click on suggestion to register
     setTimeout(() => {
-      if (value.trim() && !hasResolved) {
-        resolveAndSubmit();
-      }
       setIsOpen(false);
-    }, 150);
+    }, 200);
   };
 
   const handleFocus = () => {
@@ -201,9 +198,8 @@ export function SkillInput({
               data-highlighted={index === highlightIndex}
               onMouseDown={(e) => {
                 e.preventDefault(); // Prevent blur
-                selectSuggestion({ ...match, inputValue: value });
               }}
-              onMouseEnter={() => setHighlightIndex(index)}
+              onClick={() => selectSuggestion({ ...match, inputValue: value })}
             >
               <span className="skill-input-option-name">{match.value}</span>
               {match.matchType === 'exact' && (

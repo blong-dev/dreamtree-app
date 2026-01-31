@@ -2747,7 +2747,6 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
 .experience-task-section {
   border: var(--border-thin) solid color-mix(in srgb, var(--color-muted) 30%, transparent);
   border-radius: var(--radius-md);
-  overflow: hidden;
 }
 
 .experience-task-header {
