@@ -240,7 +240,12 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
       setAnimatedMessageIds(prev => new Set(prev).add(messageId));
 
       if (currentBlock?.blockType === 'content' && messageId === `block-${currentBlock.id}`) {
-        if (wasSkipped) {
+        // Check if next block is a tool - auto-show it without Continue button
+        // displayedBlockIndex is 1-indexed, so blocks[displayedBlockIndex] gets the next block
+        const nextBlock = blocks[displayedBlockIndex];
+        const nextIsTool = nextBlock?.blockType === 'tool';
+
+        if (wasSkipped || nextIsTool) {
           // Guard against rapid skips (same pattern as handleContinue)
           if (isAdvancingRef.current) return;
           isAdvancingRef.current = true;
@@ -266,6 +271,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
             }, 200);
           }
         } else {
+          // Next block is content - wait for Continue button
           setCurrentAnimationComplete(true);
         }
       }
