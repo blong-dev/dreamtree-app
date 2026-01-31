@@ -34,6 +34,7 @@ import {
   SimpleInputWrapper,
   ExperienceBuilderWrapper,
   TasksPerExperienceBuilderWrapper,
+  SkillsPerStoryBuilderWrapper,
   SkillMasteryRaterWrapper,
   type ToolSaveResponse,
   type ToolWrapperRef,
@@ -94,6 +95,7 @@ type ToolName =
   | 'competency_assessment'
   | 'experience_builder'
   | 'tasks_per_experience_builder'
+  | 'skills_per_story_builder'
   | 'skill_mastery_rater';
 
 export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolEmbed(
@@ -204,6 +206,8 @@ export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolE
         return <ExperienceBuilderWrapper {...commonProps} />;
       case 'tasks_per_experience_builder':
         return <TasksPerExperienceBuilderWrapper {...commonProps} />;
+      case 'skills_per_story_builder':
+        return <SkillsPerStoryBuilderWrapper {...commonProps} />;
       case 'skill_mastery_rater':
         return <SkillMasteryRaterWrapper {...commonProps} />;
       default:

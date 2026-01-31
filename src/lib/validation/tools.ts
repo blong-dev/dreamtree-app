@@ -26,6 +26,7 @@ const TOOL_VALIDATORS: Record<string, (data: unknown) => ValidationResult> = {
   'competency_assessment': validateCompetencyAssessment,
   'experience_builder': validateExperienceBuilder,
   'tasks_per_experience_builder': validateTasksPerExperienceBuilder,
+  'skills_per_story_builder': validateSkillsPerStoryBuilder,
   'skill_mastery_rater': validateSkillMasteryRater,
 };
 
@@ -517,6 +518,52 @@ function validateTasksPerExperienceBuilder(data: unknown): ValidationResult { //
       }
       if (!isString(task.value) || task.value.trim() === '') {
         return { valid: false, error: `TasksPerExperienceBuilder: experiencesWithTasks[${i}].tasks[${j}].value must be non-empty string` };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+// SkillsPerStoryBuilder: { storiesWithSkills: [{ story: {...}, skills: [{id, value}] }] }
+function validateSkillsPerStoryBuilder(data: unknown): ValidationResult {
+  if (!isObject(data)) {
+    return { valid: false, error: 'SkillsPerStoryBuilder: expected object' };
+  }
+
+  if (!isArray(data.storiesWithSkills)) {
+    return { valid: false, error: 'SkillsPerStoryBuilder: storiesWithSkills must be array' };
+  }
+
+  for (let i = 0; i < data.storiesWithSkills.length; i++) {
+    const item = data.storiesWithSkills[i];
+    if (!isObject(item)) {
+      return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}] must be object` };
+    }
+
+    // Validate story object
+    if (!isObject(item.story)) {
+      return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].story must be object` };
+    }
+    if (!isString(item.story.id)) {
+      return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].story.id must be string` };
+    }
+
+    // Validate skills array
+    if (!isArray(item.skills)) {
+      return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].skills must be array` };
+    }
+
+    for (let j = 0; j < item.skills.length; j++) {
+      const skill = item.skills[j];
+      if (!isObject(skill)) {
+        return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].skills[${j}] must be object` };
+      }
+      if (!isString(skill.id)) {
+        return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].skills[${j}].id must be string` };
+      }
+      if (!isString(skill.value) || skill.value.trim() === '') {
+        return { valid: false, error: `SkillsPerStoryBuilder: storiesWithSkills[${i}].skills[${j}].value must be non-empty string` };
       }
     }
   }

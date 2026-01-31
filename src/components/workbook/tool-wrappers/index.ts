@@ -22,5 +22,6 @@ export { SimpleInputWrapper } from './SimpleInputWrapper';
 // Exercise 1.1.1 domain-specific tools
 export { ExperienceBuilderWrapper } from './ExperienceBuilderWrapper';
 export { TasksPerExperienceBuilderWrapper } from './TasksPerExperienceBuilderWrapper';
+export { SkillsPerStoryBuilderWrapper } from './SkillsPerStoryBuilderWrapper';
 export { SkillMasteryRaterWrapper } from './SkillMasteryRaterWrapper';
 export type { ToolWrapperProps, ToolSaveResponse, ToolWrapperRef } from './types';

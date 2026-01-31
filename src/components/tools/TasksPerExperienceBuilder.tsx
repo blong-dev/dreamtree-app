@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useId, KeyboardEvent } from 'react';
+import { useState, useId, KeyboardEvent, ReactNode } from 'react';
 import type { ExperienceEntry } from './ExperienceBuilder';
 
 export interface TaskEntry {
@@ -13,11 +13,50 @@ export interface ExperienceWithTasks {
   tasks: TaskEntry[];
 }
 
+/**
+ * Configurable labels for the component.
+ * Allows reuse for different contexts (tasks/experiences vs skills/stories).
+ */
+export interface TasksPerExperienceLabels {
+  /** Name for the parent items, e.g., "experience" or "story" */
+  parentName: string;
+  /** Plural form of parent name, e.g., "experiences" or "stories" */
+  parentNamePlural: string;
+  /** Name for the child items, e.g., "task" or "skill" */
+  childName: string;
+  /** Plural form of child name, e.g., "tasks" or "skills" */
+  childNamePlural: string;
+  /** Prompt text shown when section is expanded */
+  prompt: string;
+  /** Placeholder text for the add input */
+  placeholder: string;
+  /** Message shown when no parents exist */
+  emptyMessage: string;
+}
+
+const DEFAULT_LABELS: TasksPerExperienceLabels = {
+  parentName: 'experience',
+  parentNamePlural: 'experiences',
+  childName: 'task',
+  childNamePlural: 'tasks',
+  prompt: 'What tasks or responsibilities did you have in this role? Think about skills you used or developed.',
+  placeholder: 'Add a task...',
+  emptyMessage: 'No experiences found. Please complete Part a first.',
+};
+
 interface TasksPerExperienceBuilderProps {
   experiencesWithTasks: ExperienceWithTasks[];
   onChange: (data: ExperienceWithTasks[]) => void;
   disabled?: boolean;
   id?: string;
+  /** Custom labels for different contexts */
+  labels?: Partial<TasksPerExperienceLabels>;
+  /** Whether to show the type badge in headers (default: true) */
+  showTypeBadge?: boolean;
+  /** Whether to show organization in headers (default: true) */
+  showOrganization?: boolean;
+  /** Optional render function for additional context below the prompt */
+  renderContext?: (experience: ExperienceEntry) => ReactNode;
 }
 
 export function TasksPerExperienceBuilder({
@@ -25,9 +64,14 @@ export function TasksPerExperienceBuilder({
   onChange,
   disabled = false,
   id,
+  labels: customLabels,
+  showTypeBadge = true,
+  showOrganization = true,
+  renderContext,
 }: TasksPerExperienceBuilderProps) { // code_id:1020
   const generatedId = useId();
   const listId = id || generatedId;
+  const labels = { ...DEFAULT_LABELS, ...customLabels };
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     new Set(experiencesWithTasks.map(e => e.experience.id))
   );
@@ -53,7 +97,7 @@ export function TasksPerExperienceBuilder({
   if (experiencesWithTasks.length === 0) {
     return (
       <div className="tasks-per-experience-empty">
-        <p>No experiences found. Please complete Part a first.</p>
+        <p>{labels.emptyMessage}</p>
       </div>
     );
   }
@@ -70,12 +114,16 @@ export function TasksPerExperienceBuilder({
             onToggle={() => toggleExpanded(item.experience.id)}
             onTasksChange={(tasks) => updateTasks(item.experience.id, tasks)}
             disabled={disabled}
+            labels={labels}
+            showTypeBadge={showTypeBadge}
+            showOrganization={showOrganization}
+            renderContext={renderContext}
           />
         ))}
       </div>
 
       <div className="tasks-per-experience-summary">
-        {experiencesWithTasks.reduce((total, e) => total + e.tasks.length, 0)} tasks across {experiencesWithTasks.length} experiences
+        {experiencesWithTasks.reduce((total, e) => total + e.tasks.length, 0)} {labels.childNamePlural} across {experiencesWithTasks.length} {labels.parentNamePlural}
       </div>
     </div>
   );
@@ -89,6 +137,10 @@ interface ExperienceTaskSectionProps {
   onToggle: () => void;
   onTasksChange: (tasks: TaskEntry[]) => void;
   disabled: boolean;
+  labels: TasksPerExperienceLabels;
+  showTypeBadge: boolean;
+  showOrganization: boolean;
+  renderContext?: (experience: ExperienceEntry) => ReactNode;
 }
 
 function ExperienceTaskSection({
@@ -98,10 +150,14 @@ function ExperienceTaskSection({
   onToggle,
   onTasksChange,
   disabled,
+  labels,
+  showTypeBadge,
+  showOrganization,
+  renderContext,
 }: ExperienceTaskSectionProps) { // code_id:1021
   const [newTaskValue, setNewTaskValue] = useState('');
 
-  const generateId = () => `task-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const generateId = () => `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
   const addTask = () => {
     if (!newTaskValue.trim() || disabled) return;
@@ -142,14 +198,14 @@ function ExperienceTaskSection({
         disabled={disabled}
       >
         <div className="experience-task-header-content">
-          <span className="experience-task-type">{typeLabel}</span>
+          {showTypeBadge && <span className="experience-task-type">{typeLabel}</span>}
           <span className="experience-task-title">{experience.title}</span>
-          {experience.organization && (
+          {showOrganization && experience.organization && (
             <span className="experience-task-org">at {experience.organization}</span>
           )}
         </div>
         <div className="experience-task-header-right">
-          <span className="experience-task-count">{tasks.length} tasks</span>
+          <span className="experience-task-count">{tasks.length} {labels.childNamePlural}</span>
           <ChevronIcon isExpanded={isExpanded} />
         </div>
       </button>
@@ -157,8 +213,10 @@ function ExperienceTaskSection({
       {isExpanded && (
         <div className="experience-task-body">
           <p className="experience-task-prompt">
-            What tasks or responsibilities did you have in this role? Think about skills you used or developed.
+            {labels.prompt}
           </p>
+
+          {renderContext && renderContext(experience)}
 
           <ul className="experience-task-list">
             {tasks.map((task) => (
@@ -168,6 +226,7 @@ function ExperienceTaskSection({
                 onUpdate={(value) => updateTask(task.id, value)}
                 onRemove={() => removeTask(task.id)}
                 disabled={disabled}
+                childName={labels.childName}
               />
             ))}
           </ul>
@@ -176,7 +235,7 @@ function ExperienceTaskSection({
             <input
               type="text"
               className="experience-task-add-input"
-              placeholder="Add a task..."
+              placeholder={labels.placeholder}
               value={newTaskValue}
               onChange={(e) => setNewTaskValue(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -204,9 +263,10 @@ interface TaskItemProps {
   onUpdate: (value: string) => void;
   onRemove: () => void;
   disabled: boolean;
+  childName: string;
 }
 
-function TaskItem({ task, onUpdate, onRemove, disabled }: TaskItemProps) { // code_id:1022
+function TaskItem({ task, onUpdate, onRemove, disabled, childName }: TaskItemProps) { // code_id:1022
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.value);
 
@@ -257,7 +317,7 @@ function TaskItem({ task, onUpdate, onRemove, disabled }: TaskItemProps) { // co
         className="experience-task-item-remove"
         onClick={onRemove}
         disabled={disabled}
-        aria-label="Remove task"
+        aria-label={`Remove ${childName}`}
       >
         <XIcon />
       </button>

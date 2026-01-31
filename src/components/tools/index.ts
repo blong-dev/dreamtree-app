@@ -28,7 +28,7 @@ export { CareerTimeline } from './CareerTimeline';
 export { CareerAssessment } from './CareerAssessment';
 export { CompetencyAssessment } from './CompetencyAssessment';
 export { ExperienceBuilder, type ExperienceEntry } from './ExperienceBuilder';
-export { TasksPerExperienceBuilder, type ExperienceWithTasks, type TaskEntry } from './TasksPerExperienceBuilder';
+export { TasksPerExperienceBuilder, type ExperienceWithTasks, type TaskEntry, type TasksPerExperienceLabels } from './TasksPerExperienceBuilder';
 export { SkillMasteryRater, type SkillWithMastery } from './SkillMasteryRater';
 export { ToolPage } from './ToolPage';
 export type { ToolType, ToolInstance } from './ToolPage';

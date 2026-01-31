@@ -30,6 +30,7 @@ const DOMAIN_WRITERS: Record<string, DomainWriter> = {
 type DomainWriter = (
   db: D1Database,
   userId: string,
+  stemId: number,
   data: unknown
 ) => Promise<void>;
 
@@ -39,7 +40,7 @@ type DomainWriter = (
 export async function writeToDomainTable(
   db: D1Database,
   userId: string,
-  _stemId: number, // Kept for API compatibility but not used
+  stemId: number,
   toolName: string,
   responseText: string
 ): Promise<void> {
@@ -53,7 +54,7 @@ export async function writeToDomainTable(
 
   try {
     const data = JSON.parse(responseText);
-    await writer(db, userId, data);
+    await writer(db, userId, stemId, data);
   } catch (err) {
     console.error(`[DomainWriter] Failed to write ${toolName} to domain table:`, err);
     // Don't throw - domain write failure shouldn't break the save
@@ -78,53 +79,55 @@ interface SOAREDData {
 async function writeSOAREDStory(
   db: D1Database,
   userId: string,
+  stemId: number,
   data: unknown
 ): Promise<void> {
   const story = data as SOAREDData;
   const now = new Date().toISOString();
 
-  // Use title as natural key for upsert (or insert if no title)
-  if (story.title) {
-    const existing = await db
-      .prepare('SELECT id FROM user_stories WHERE user_id = ? AND title = ?')
-      .bind(userId, story.title)
-      .first<{ id: string }>();
+  // Use stem_id as the key for upsert (each SOARED form instance is unique by stem)
+  const existing = await db
+    .prepare('SELECT id FROM user_stories WHERE user_id = ? AND stem_id = ?')
+    .bind(userId, stemId)
+    .first<{ id: string }>();
 
-    if (existing) {
-      await db
-        .prepare(`
-          UPDATE user_stories
-          SET situation = ?, obstacle = ?, action = ?,
-              result = ?, evaluation = ?, discovery = ?, story_type = ?,
-              updated_at = ?
-          WHERE id = ?
-        `)
-        .bind(
-          story.situation,
-          story.obstacle,
-          story.action,
-          story.result,
-          story.evaluation,
-          story.discovery,
-          story.storyType,
-          now,
-          existing.id
-        )
-        .run();
-      return;
-    }
+  if (existing) {
+    // Update existing story (title can change freely now)
+    await db
+      .prepare(`
+        UPDATE user_stories
+        SET title = ?, situation = ?, obstacle = ?, action = ?,
+            result = ?, evaluation = ?, discovery = ?, story_type = ?,
+            updated_at = ?
+        WHERE id = ?
+      `)
+      .bind(
+        story.title || null,
+        story.situation,
+        story.obstacle,
+        story.action,
+        story.result,
+        story.evaluation,
+        story.discovery,
+        story.storyType,
+        now,
+        existing.id
+      )
+      .run();
+    return;
   }
 
-  // Insert new story
+  // Insert new story with stem_id
   await db
     .prepare(`
       INSERT INTO user_stories
-      (id, user_id, title, situation, obstacle, action, result, evaluation, discovery, story_type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, user_id, stem_id, title, situation, obstacle, action, result, evaluation, discovery, story_type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       nanoid(),
       userId,
+      stemId,
       story.title || null,
       story.situation,
       story.obstacle,
@@ -151,6 +154,7 @@ interface SkillTaggerData {
 async function writeSkills(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { selectedSkillIds } = data as SkillTaggerData;
@@ -202,6 +206,7 @@ interface LifeDashboardData {
 async function writeLifeDashboard(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const dashboard = data as LifeDashboardData;
@@ -272,6 +277,7 @@ interface FlowTrackerData {
 async function writeFlowEntries(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { entries } = data as FlowTrackerData;
@@ -326,6 +332,7 @@ interface MBTIData {
 async function writeMBTICode(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { selectedCode } = data as MBTIData;
@@ -378,6 +385,7 @@ interface BudgetData {
 async function writeBudget(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const budget = data as BudgetData;
@@ -428,6 +436,7 @@ interface CareerAssessmentData {
 async function writeCareerOptions(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { options } = data as CareerAssessmentData;
@@ -482,6 +491,7 @@ interface CompetencyAssessmentData {
 async function writeCompetencyScores(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { scores } = data as CompetencyAssessmentData;
@@ -531,6 +541,7 @@ interface ExperienceBuilderData {
 async function writeExperiences(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { experiences } = data as ExperienceBuilderData;
@@ -639,6 +650,7 @@ interface TasksPerExperienceData {
 async function writeTasksPerExperience(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { experiencesWithTasks } = data as TasksPerExperienceData;
@@ -760,6 +772,7 @@ interface SkillMasteryRaterData {
 async function writeSkillMastery(
   db: D1Database,
   userId: string,
+  _stemId: number,
   data: unknown
 ): Promise<void> {
   const { skills } = data as SkillMasteryRaterData;
