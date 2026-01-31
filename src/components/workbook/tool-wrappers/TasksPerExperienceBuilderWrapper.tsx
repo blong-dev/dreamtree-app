@@ -9,7 +9,7 @@ import type { ToolWrapperProps, ToolWrapperRef } from './types';
 /**
  * TasksPerExperienceBuilderWrapper - Exercise 1.1.1 Part b
  * For each experience from Part a, list the tasks performed
- * Writes to skills and user_experience_skills tables via domain writer
+ * Writes to skills, user_skills, and skill_evidence tables via domain writer
  */
 export const TasksPerExperienceBuilderWrapper = forwardRef<ToolWrapperRef, ToolWrapperProps>(function TasksPerExperienceBuilderWrapper({
   stemId,

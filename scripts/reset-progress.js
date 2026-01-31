@@ -69,6 +69,7 @@ try {
   const domainTables = [
     'user_experiences',
     'user_experience_skills',
+    'skill_evidence',
     'user_skills',
     'user_stories',
     'user_values',

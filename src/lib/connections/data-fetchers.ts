@@ -123,8 +123,8 @@ export async function fetchKnowledgeSkills(
 
 /**
  * Fetch custom skills created by the user (from Part 1b tasks)
- * Queries skills table directly (WHERE created_by = user_id)
- * with LEFT JOIN to user_skills for mastery ratings.
+ * Only returns skills with active evidence (evidence_count > 0).
+ * Skills removed from experiences will no longer appear here.
  *
  * This is used by Part 1c (SkillMasteryRater) which needs all custom
  * skills including those that haven't been rated yet.
@@ -137,8 +137,8 @@ export async function fetchCustomSkills(
     .prepare(
       `SELECT s.id, s.name, us.mastery
        FROM skills s
-       LEFT JOIN user_skills us ON s.id = us.skill_id AND us.user_id = ?
-       WHERE s.created_by = ?
+       JOIN user_skills us ON s.id = us.skill_id AND us.user_id = ?
+       WHERE s.created_by = ? AND us.evidence_count > 0
        ORDER BY s.created_at`
     )
     .bind(userId, userId)

@@ -103,8 +103,25 @@ export interface UserSkill {
   mastery: number | null; // 1-5
   evidence: string | null;
   rank: number | null;
+  evidence_count: number; // derived count of evidence records
   created_at: string;
   updated_at: string;
+}
+
+export type SkillEvidenceSourceType = 'experience_task' | 'story_skill' | 'explicit_tag' | 'assessment';
+export type SkillEvidenceMatchType = 'exact' | 'fuzzy' | 'custom';
+
+export interface SkillEvidence {
+  id: string;
+  user_skill_id: string | null; // FK to user_skills (nullable, linked after creation)
+  source_type: SkillEvidenceSourceType;
+  source_id: string | null; // experience_id, story_id, stem_id, etc.
+  input_value: string | null; // exactly what user typed (harvest)
+  match_type: SkillEvidenceMatchType | null;
+  match_score: number | null; // 0-1 confidence
+  is_active: number; // 1=active, 0=removed (never delete, just deactivate)
+  removed_at: string | null; // timestamp when removed (null if active)
+  created_at: string;
 }
 
 export type StoryType = 'challenge' | 'reframe' | 'other';

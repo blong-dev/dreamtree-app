@@ -560,15 +560,46 @@ async function writeExperiences(
   // 2. Build all statements
   const statements: ReturnType<D1Database['prepare']>[] = [];
 
-  // Delete removed experiences (cascade delete junctions first, then experience)
-  for (const idToDelete of idsToDelete) {
-    // Always try to delete junctions first (harmless if none exist)
-    statements.push(
-      db.prepare('DELETE FROM user_experience_skills WHERE experience_id = ?').bind(idToDelete)
-    );
-    statements.push(
-      db.prepare('DELETE FROM user_experiences WHERE id = ?').bind(idToDelete)
-    );
+  // Handle deleted experiences - mark associated skill_evidence as inactive
+  if (idsToDelete.length > 0) {
+    const deletePlaceholders = idsToDelete.map(() => '?').join(',');
+
+    // Find all active skill_evidence for these experiences
+    const evidenceResult = await db
+      .prepare(`
+        SELECT id, user_skill_id FROM skill_evidence
+        WHERE source_type = 'experience_task'
+          AND source_id IN (${deletePlaceholders})
+          AND is_active = 1
+      `)
+      .bind(...idsToDelete)
+      .all<{ id: string; user_skill_id: string }>();
+
+    // Mark evidence as inactive and decrement counts
+    const userSkillsToDecrement = new Set<string>();
+    for (const evidence of evidenceResult.results || []) {
+      statements.push(
+        db.prepare(`
+          UPDATE skill_evidence SET is_active = 0, removed_at = ? WHERE id = ?
+        `).bind(now, evidence.id)
+      );
+      userSkillsToDecrement.add(evidence.user_skill_id);
+    }
+
+    for (const userSkillId of userSkillsToDecrement) {
+      statements.push(
+        db.prepare(`
+          UPDATE user_skills SET evidence_count = evidence_count - 1, updated_at = ? WHERE id = ?
+        `).bind(now, userSkillId)
+      );
+    }
+
+    // Delete the experiences themselves
+    for (const idToDelete of idsToDelete) {
+      statements.push(
+        db.prepare('DELETE FROM user_experiences WHERE id = ?').bind(idToDelete)
+      );
+    }
   }
 
   // Upsert each experience
@@ -621,9 +652,9 @@ async function writeExperiences(
 }
 
 // ============================================================
-// TASKS PER EXPERIENCE BUILDER → skills + user_experience_skills
+// TASKS PER EXPERIENCE BUILDER → skills + user_skills + skill_evidence
 // Exercise 1.1.1 Part b: For each experience, list tasks
-// Tasks become custom skills linked to the experience
+// Tasks become skills with evidence linking them to experiences
 // OPTIMIZED: Pre-fetch all data, batch all writes
 // ============================================================
 
@@ -655,61 +686,80 @@ async function writeTasksPerExperience(
 
   // Phase 1: Pre-fetch ALL existing data in bulk queries
 
-  // 1a. Get all existing experience-skill junctions for these experiences
+  // 1a. Get all active skill_evidence for these experiences (source_type = 'experience_task')
   const expPlaceholders = experienceIds.map(() => '?').join(',');
-  const existingJunctionsResult = await db
+  const existingEvidenceResult = await db
     .prepare(`
-      SELECT ues.id as junction_id, ues.experience_id, ues.skill_id, s.name
-      FROM user_experience_skills ues
-      JOIN skills s ON ues.skill_id = s.id
-      WHERE ues.experience_id IN (${expPlaceholders}) AND s.created_by = ?
+      SELECT se.id as evidence_id, se.source_id as experience_id, se.user_skill_id, us.skill_id, s.name
+      FROM skill_evidence se
+      JOIN user_skills us ON se.user_skill_id = us.id
+      JOIN skills s ON us.skill_id = s.id
+      WHERE se.source_type = 'experience_task'
+        AND se.source_id IN (${expPlaceholders})
+        AND se.is_active = 1
+        AND us.user_id = ?
     `)
     .bind(...experienceIds, userId)
-    .all<{ junction_id: string; experience_id: string; skill_id: string; name: string }>();
+    .all<{ evidence_id: string; experience_id: string; user_skill_id: string; skill_id: string; name: string }>();
 
   // 1b. Get all custom skills created by this user (for reuse across experiences)
-  const userSkillsResult = await db
+  const customSkillsResult = await db
     .prepare('SELECT id, name FROM skills WHERE created_by = ?')
     .bind(userId)
     .all<{ id: string; name: string }>();
 
+  // 1c. Get user's existing user_skills records
+  const userSkillRecordsResult = await db
+    .prepare('SELECT id, skill_id FROM user_skills WHERE user_id = ?')
+    .bind(userId)
+    .all<{ id: string; skill_id: string }>();
+
   // Build lookup structures
-  // Map: experienceId -> Map<skillNameLower, {junction_id, skill_id}>
-  const existingByExperience = new Map<string, Map<string, { junction_id: string; skill_id: string }>>();
-  for (const row of existingJunctionsResult.results || []) {
+  // Map: experienceId -> Map<skillNameLower, {evidence_id, user_skill_id, skill_id}>
+  const existingByExperience = new Map<string, Map<string, { evidence_id: string; user_skill_id: string; skill_id: string }>>();
+  for (const row of existingEvidenceResult.results || []) {
     if (!existingByExperience.has(row.experience_id)) {
       existingByExperience.set(row.experience_id, new Map());
     }
     existingByExperience.get(row.experience_id)!.set(
       row.name.toLowerCase(),
-      { junction_id: row.junction_id, skill_id: row.skill_id }
+      { evidence_id: row.evidence_id, user_skill_id: row.user_skill_id, skill_id: row.skill_id }
     );
   }
 
-  // Map: skillNameLower -> skillId (all user's custom skills)
-  const userSkillsByName = new Map<string, string>(
-    (userSkillsResult.results || []).map(s => [s.name.toLowerCase(), s.id])
+  // Map: skillNameLower -> skillId (all user's custom skills in skills table)
+  const customSkillsByName = new Map<string, string>(
+    (customSkillsResult.results || []).map(s => [s.name.toLowerCase(), s.id])
   );
 
-  // Track all skill IDs that need deletion check
-  const skillIdsToCheck = new Set<string>();
+  // Map: skillId -> userSkillId (user's existing user_skills records)
+  const userSkillBySkillId = new Map<string, string>(
+    (userSkillRecordsResult.results || []).map(r => [r.skill_id, r.id])
+  );
+
+  // Track user_skill_ids that need evidence_count decremented
+  const userSkillsToDecrement = new Set<string>();
 
   // Phase 2: Build all batch statements in memory (no queries)
   const statements: ReturnType<D1Database['prepare']>[] = [];
   const newSkillsCreated = new Map<string, string>(); // track skills we're creating in this batch
+  const newUserSkillsCreated = new Map<string, string>(); // track user_skills we're creating: skillId -> userSkillId
 
   for (const expWithTasks of experiencesWithTasks) {
     const experienceId = expWithTasks.experience.id;
     const existingForExp = existingByExperience.get(experienceId) || new Map();
     const newTaskNames = new Set(expWithTasks.tasks.map(t => t.value.toLowerCase()));
 
-    // Find junctions to delete (tasks removed)
-    for (const [nameLower, { junction_id, skill_id }] of existingForExp) {
+    // Find evidence to deactivate (tasks removed)
+    for (const [nameLower, { evidence_id, user_skill_id }] of existingForExp) {
       if (!newTaskNames.has(nameLower)) {
+        // Mark evidence as inactive (never delete - harvest for analysis)
         statements.push(
-          db.prepare('DELETE FROM user_experience_skills WHERE id = ?').bind(junction_id)
+          db.prepare(`
+            UPDATE skill_evidence SET is_active = 0, removed_at = ? WHERE id = ?
+          `).bind(now, evidence_id)
         );
-        skillIdsToCheck.add(skill_id);
+        userSkillsToDecrement.add(user_skill_id);
       }
     }
 
@@ -718,8 +768,8 @@ async function writeTasksPerExperience(
       const taskNameLower = task.value.toLowerCase();
 
       if (!existingForExp.has(taskNameLower)) {
-        // Need to create junction. First, find or create the skill.
-        let skillId = userSkillsByName.get(taskNameLower) || newSkillsCreated.get(taskNameLower);
+        // Need to create evidence. First, find or create the skill in skills table.
+        let skillId = customSkillsByName.get(taskNameLower) || newSkillsCreated.get(taskNameLower);
 
         if (!skillId) {
           // Create new custom skill
@@ -731,18 +781,50 @@ async function writeTasksPerExperience(
             `).bind(skillId, task.value, userId, now)
           );
           newSkillsCreated.set(taskNameLower, skillId);
-          userSkillsByName.set(taskNameLower, skillId); // track for other experiences
+          customSkillsByName.set(taskNameLower, skillId);
         }
 
-        // Create junction
+        // Find or create user_skill record
+        let userSkillId = userSkillBySkillId.get(skillId) || newUserSkillsCreated.get(skillId);
+
+        if (!userSkillId) {
+          // Create new user_skill record (mastery=NULL means not yet rated)
+          userSkillId = nanoid();
+          statements.push(
+            db.prepare(`
+              INSERT INTO user_skills (id, user_id, skill_id, category, mastery, evidence_count, created_at, updated_at)
+              VALUES (?, ?, ?, 'transferable', NULL, 1, ?, ?)
+            `).bind(userSkillId, userId, skillId, now, now)
+          );
+          newUserSkillsCreated.set(skillId, userSkillId);
+          userSkillBySkillId.set(skillId, userSkillId);
+        } else {
+          // Increment evidence_count on existing user_skill
+          statements.push(
+            db.prepare(`
+              UPDATE user_skills SET evidence_count = evidence_count + 1, updated_at = ? WHERE id = ?
+            `).bind(now, userSkillId)
+          );
+        }
+
+        // Create skill_evidence record
         statements.push(
           db.prepare(`
-            INSERT INTO user_experience_skills (id, experience_id, skill_id, created_at)
-            VALUES (?, ?, ?, ?)
-          `).bind(nanoid(), experienceId, skillId, now)
+            INSERT INTO skill_evidence (id, user_skill_id, source_type, source_id, input_value, match_type, is_active, created_at)
+            VALUES (?, ?, 'experience_task', ?, ?, 'custom', 1, ?)
+          `).bind(nanoid(), userSkillId, experienceId, task.value, now)
         );
       }
     }
+  }
+
+  // Add decrement statements for removed evidence
+  for (const userSkillId of userSkillsToDecrement) {
+    statements.push(
+      db.prepare(`
+        UPDATE user_skills SET evidence_count = evidence_count - 1, updated_at = ? WHERE id = ?
+      `).bind(now, userSkillId)
+    );
   }
 
   // Phase 3: Execute main batch
@@ -750,40 +832,9 @@ async function writeTasksPerExperience(
     await db.batch(statements);
   }
 
-  // Phase 4: Clean up orphaned skills (skills no longer linked to any experience)
-  // This must be done after the main batch since we need to check post-deletion state
-  if (skillIdsToCheck.size > 0) {
-    const skillIds = Array.from(skillIdsToCheck);
-    const skillPlaceholders = skillIds.map(() => '?').join(',');
-
-    // Find skills with zero remaining junctions
-    const orphanedResult = await db
-      .prepare(`
-        SELECT s.id
-        FROM skills s
-        LEFT JOIN user_experience_skills ues ON s.id = ues.skill_id
-        WHERE s.id IN (${skillPlaceholders}) AND ues.id IS NULL
-      `)
-      .bind(...skillIds)
-      .all<{ id: string }>();
-
-    const orphanedSkillIds = (orphanedResult.results || []).map(r => r.id);
-
-    if (orphanedSkillIds.length > 0) {
-      const cleanupStatements = [];
-      for (const skillId of orphanedSkillIds) {
-        // Delete from user_skills first (mastery ratings)
-        cleanupStatements.push(
-          db.prepare('DELETE FROM user_skills WHERE skill_id = ?').bind(skillId)
-        );
-        // Then delete the skill itself
-        cleanupStatements.push(
-          db.prepare('DELETE FROM skills WHERE id = ?').bind(skillId)
-        );
-      }
-      await db.batch(cleanupStatements);
-    }
-  }
+  // Note: We no longer delete orphaned skills. Skills stay in user_skills even at
+  // evidence_count=0 (skill stays in profile). Evidence records are never deleted
+  // (kept for analysis with is_active=0).
 }
 
 // ============================================================
