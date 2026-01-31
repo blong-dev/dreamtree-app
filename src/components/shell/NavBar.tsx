@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { NavItem } from './NavItem';
 import { NavItemId } from './types';
 import { HomeIcon, ListIcon, WrenchIcon, UserIcon, AcornIcon } from '../icons';
@@ -22,8 +21,6 @@ export function NavBar({
   onNavigate,
   onExpandTools,
 }: NavBarProps) { // code_id:283
-  const router = useRouter();
-
   return (
     <nav
       className="nav-bar"
@@ -32,7 +29,7 @@ export function NavBar({
     >
       {/* Brand lockup - only shown on desktop left rail, links to workbook */}
       {position === 'left' && (
-        <div className="nav-brand" onClick={() => router.push('/workbook')}>
+        <div className="nav-brand" onClick={() => onNavigate('workbook')}>
           <AcornIcon className="nav-brand-icon" aria-hidden="true" />
           <span className="nav-brand-text">dreamtree</span>
         </div>
