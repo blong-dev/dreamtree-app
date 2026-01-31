@@ -143,7 +143,10 @@ export function useConnectionData<T>({
 
     // Fetch fresh data
     const fetchData = async () => {
-      setIsLoading(true);
+      // Only show loading on initial load, not refresh (stale-while-revalidate)
+      if (!hasLoadedRef.current) {
+        setIsLoading(true);
+      }
       try {
         // Try connection first
         let freshData = await fetchConnectionData();
@@ -180,7 +183,7 @@ export function useConnectionData<T>({
   // Manual refresh function
   const refresh = useCallback(() => {
     const fetchData = async () => {
-      setIsLoading(true);
+      // Don't show loading on manual refresh (stale-while-revalidate)
       try {
         let freshData = await fetchConnectionData();
 
