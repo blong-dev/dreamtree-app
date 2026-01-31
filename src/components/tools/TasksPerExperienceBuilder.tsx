@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useId, useRef, KeyboardEvent, ReactNode, useCallback } from 'react';
+import { useState, useId, useRef, KeyboardEvent, FocusEvent, ReactNode, useCallback } from 'react';
 import type { ExperienceEntry } from './ExperienceBuilder';
 import { SkillInput, type SkillMatch } from '@/components/forms/SkillInput';
+import { useSkillsLibrary } from '@/hooks/useSkillsLibrary';
 
 export interface TaskEntry {
   id: string;
@@ -161,6 +162,7 @@ function ExperienceTaskSection({
   showOrganization,
   renderContext,
 }: ExperienceTaskSectionProps) { // code_id:1021
+  const { resolve } = useSkillsLibrary();
   const [newTaskValue, setNewTaskValue] = useState('');
   // Track pending skill match metadata (set when SkillInput resolves)
   const pendingMatch = useRef<SkillMatch | null>(null);
@@ -192,15 +194,14 @@ function ExperienceTaskSection({
     }
   }, [addTaskWithMatch]);
 
-  const updateTask = (taskId: string, value: string) => {
-    // When editing, we lose match metadata (it becomes custom)
+  const updateTask = (taskId: string, match: SkillMatch) => {
     onTasksChange(tasks.map(t => t.id === taskId ? {
       ...t,
-      value,
-      skillId: undefined,
-      matchType: 'custom' as const,
-      matchScore: 0,
-      inputValue: value,
+      value: match.value,
+      skillId: match.skillId,
+      matchType: match.matchType,
+      matchScore: match.matchScore,
+      inputValue: match.inputValue,
     } : t));
   };
 
@@ -245,10 +246,11 @@ function ExperienceTaskSection({
               <TaskItem
                 key={task.id}
                 task={task}
-                onUpdate={(value) => updateTask(task.id, value)}
+                onUpdate={(match) => updateTask(task.id, match)}
                 onRemove={() => removeTask(task.id)}
                 disabled={disabled}
                 childName={labels.childName}
+                resolve={resolve}
               />
             ))}
           </ul>
@@ -271,53 +273,87 @@ function ExperienceTaskSection({
 // Individual task item
 interface TaskItemProps {
   task: TaskEntry;
-  onUpdate: (value: string) => void;
+  onUpdate: (match: SkillMatch) => void;
   onRemove: () => void;
   disabled: boolean;
   childName: string;
+  resolve: (input: string) => SkillMatch;
 }
 
-function TaskItem({ task, onUpdate, onRemove, disabled, childName }: TaskItemProps) { // code_id:1022
+function TaskItem({ task, onUpdate, onRemove, disabled, childName, resolve }: TaskItemProps) { // code_id:1022
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.value);
+  const resolvedRef = useRef(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const saveEdit = () => {
-    if (editValue.trim()) {
-      onUpdate(editValue.trim());
+  const handleSkillResolved = useCallback((match: SkillMatch) => {
+    resolvedRef.current = true;
+    if (match.value.trim()) {
+      onUpdate(match);
     } else {
+      // Empty value - revert
       setEditValue(task.value);
     }
     setIsEditing(false);
+  }, [onUpdate, task.value]);
+
+  const handleBlur = useCallback((e: FocusEvent<HTMLDivElement>) => {
+    // Check if focus is moving to another element within the wrapper (e.g., dropdown)
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (relatedTarget && wrapperRef.current?.contains(relatedTarget)) {
+      return; // Focus staying within wrapper, don't close
+    }
+
+    // Delay to allow dropdown clicks and SkillInput's own resolution
+    setTimeout(() => {
+      if (!resolvedRef.current && editValue.trim()) {
+        const match = resolve(editValue);
+        onUpdate(match);
+      } else if (!resolvedRef.current) {
+        // Empty value, revert
+        setEditValue(task.value);
+      }
+      setIsEditing(false);
+    }, 250);
+  }, [editValue, resolve, onUpdate, task.value]);
+
+  const handleWrapperKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      // Cancel edit, revert to original
+      setEditValue(task.value);
+      resolvedRef.current = true; // Prevent blur from saving
+      setIsEditing(false);
+      e.stopPropagation();
+    }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      saveEdit();
-    }
-    if (e.key === 'Escape') {
-      setEditValue(task.value);
-      setIsEditing(false);
-    }
+  const startEditing = () => {
+    setEditValue(task.value);
+    resolvedRef.current = false;
+    setIsEditing(true);
   };
 
   return (
     <li className="experience-task-item">
       {isEditing ? (
-        <input
-          type="text"
-          className="experience-task-item-input"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={saveEdit}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          disabled={disabled}
-        />
+        <div
+          ref={wrapperRef}
+          onKeyDown={handleWrapperKeyDown}
+          onBlur={handleBlur}
+          className="experience-task-item-edit-wrapper"
+        >
+          <SkillInput
+            value={editValue}
+            onChange={setEditValue}
+            onSkillResolved={handleSkillResolved}
+            autoFocus
+            disabled={disabled}
+          />
+        </div>
       ) : (
         <span
           className="experience-task-item-value"
-          onClick={() => !disabled && setIsEditing(true)}
+          onClick={() => !disabled && startEditing()}
         >
           {task.value}
         </span>

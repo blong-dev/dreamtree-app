@@ -2912,6 +2912,17 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   outline: none;
 }
 
+/* Wrapper for inline skill editing */
+.experience-task-item-edit-wrapper {
+  flex: 1;
+}
+
+.experience-task-item-edit-wrapper .skill-input {
+  padding: var(--space-2);
+  border: var(--border-thin) solid var(--color-primary);
+  background: var(--color-bg);
+}
+
 .experience-task-item-remove {
   width: 24px;
   height: 24px;
