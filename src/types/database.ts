@@ -44,6 +44,7 @@ export interface Session {
   user_id: string;
   created_at: string;
   last_seen_at: string;
+  data_key?: string | null;  // PII encryption key (stored when user logs in)
 }
 
 export interface UserSettings {

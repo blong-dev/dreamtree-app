@@ -519,50 +519,86 @@ export async function fetchIdeaTrees(
   db: D1Database,
   userId: string
 ): Promise<Array<{ id: string; title: string; nodes: unknown[]; edges: unknown[] }>> {
-  // Fetch trees
-  const trees = await db
+  // OPTIMIZED: Fetch all data with JOINs in 2 queries instead of 1 + 2n
+
+  // 1. Fetch trees with all nodes in one query
+  const treesWithNodes = await db
     .prepare(
-      `SELECT id, title, created_at
-       FROM user_idea_trees
-       WHERE user_id = ?
-       ORDER BY created_at ASC`
+      `SELECT
+         t.id as tree_id, t.title, t.created_at,
+         n.id as node_id, n.label, n.x, n.y, n.parent_id
+       FROM user_idea_trees t
+       LEFT JOIN user_idea_nodes n ON t.id = n.tree_id
+       WHERE t.user_id = ?
+       ORDER BY t.created_at ASC`
     )
     .bind(userId)
-    .all();
+    .all<{
+      tree_id: string;
+      title: string;
+      created_at: string;
+      node_id: string | null;
+      label: string | null;
+      x: number | null;
+      y: number | null;
+      parent_id: string | null;
+    }>();
 
-  // For each tree, fetch nodes and edges
-  const result = await Promise.all(
-    trees.results.map(async (tree) => { // code_id:456
-      const treeId = tree.id as string;
+  // 2. Fetch all edges for this user's trees in one query
+  const edges = await db
+    .prepare(
+      `SELECT e.id, e.tree_id, e.source_node_id, e.target_node_id
+       FROM user_idea_edges e
+       JOIN user_idea_trees t ON e.tree_id = t.id
+       WHERE t.user_id = ?`
+    )
+    .bind(userId)
+    .all<{
+      id: string;
+      tree_id: string;
+      source_node_id: string;
+      target_node_id: string;
+    }>();
 
-      const nodes = await db
-        .prepare(
-          `SELECT id, label, x, y, parent_id
-           FROM user_idea_nodes
-           WHERE tree_id = ?`
-        )
-        .bind(treeId)
-        .all();
+  // Group edges by tree
+  const edgesByTree = new Map<string, Array<{ id: string; source_node_id: string; target_node_id: string }>>();
+  for (const edge of edges.results || []) {
+    if (!edgesByTree.has(edge.tree_id)) {
+      edgesByTree.set(edge.tree_id, []);
+    }
+    edgesByTree.get(edge.tree_id)!.push({
+      id: edge.id,
+      source_node_id: edge.source_node_id,
+      target_node_id: edge.target_node_id,
+    });
+  }
 
-      const edges = await db
-        .prepare(
-          `SELECT id, source_node_id, target_node_id
-           FROM user_idea_edges
-           WHERE tree_id = ?`
-        )
-        .bind(treeId)
-        .all();
+  // Group results by tree in JavaScript
+  const treeMap = new Map<string, { id: string; title: string; nodes: unknown[]; edges: unknown[] }>();
 
-      return {
-        id: treeId,
-        title: tree.title as string,
-        nodes: nodes.results,
-        edges: edges.results,
-      };
-    })
-  );
+  for (const row of treesWithNodes.results || []) {
+    if (!treeMap.has(row.tree_id)) {
+      treeMap.set(row.tree_id, {
+        id: row.tree_id,
+        title: row.title,
+        nodes: [],
+        edges: edgesByTree.get(row.tree_id) || [],
+      });
+    }
 
-  return result;
+    // Add node if it exists (LEFT JOIN may produce null nodes for empty trees)
+    if (row.node_id) {
+      treeMap.get(row.tree_id)!.nodes.push({
+        id: row.node_id,
+        label: row.label,
+        x: row.x,
+        y: row.y,
+        parent_id: row.parent_id,
+      });
+    }
+  }
+
+  return Array.from(treeMap.values());
 }
 
 // ============================================================
@@ -574,60 +610,74 @@ export async function fetchUserLists(
   userId: string,
   listType?: string
 ): Promise<Array<{ id: string; name: string; type: string; items: Array<{ id: string; content: string; rank: number }> }>> {
-  // Use parameterized query to prevent SQL injection (IMP-038)
+  // OPTIMIZED: Fetch lists with items in single JOIN query instead of 1 + n
+
   // Validate listType against allowed patterns (alphanumeric + underscore only)
   const safeListType = listType && /^[a-zA-Z0-9_]+$/.test(listType) ? listType : null;
 
-  let lists;
-  if (safeListType) { // code_id:121
-    lists = await db
-      .prepare(
-        `SELECT id, name, list_type
-         FROM user_lists
-         WHERE user_id = ? AND list_type = ?
-         ORDER BY created_at ASC`
-      )
-      .bind(userId, safeListType)
-      .all();
+  // Single query with JOIN to fetch all lists and items
+  let query: string;
+  let bindings: unknown[];
+
+  if (safeListType) {
+    query = `
+      SELECT
+        l.id as list_id, l.name, l.list_type, l.created_at,
+        i.id as item_id, i.content, i.rank
+      FROM user_lists l
+      LEFT JOIN user_list_items i ON l.id = i.list_id
+      WHERE l.user_id = ? AND l.list_type = ?
+      ORDER BY l.created_at ASC, i.rank ASC
+    `;
+    bindings = [userId, safeListType];
   } else {
-    lists = await db
-      .prepare(
-        `SELECT id, name, list_type
-         FROM user_lists
-         WHERE user_id = ?
-         ORDER BY created_at ASC`
-      )
-      .bind(userId)
-      .all();
+    query = `
+      SELECT
+        l.id as list_id, l.name, l.list_type, l.created_at,
+        i.id as item_id, i.content, i.rank
+      FROM user_lists l
+      LEFT JOIN user_list_items i ON l.id = i.list_id
+      WHERE l.user_id = ?
+      ORDER BY l.created_at ASC, i.rank ASC
+    `;
+    bindings = [userId];
   }
 
-  // For each list, fetch items
-  const result = await Promise.all(
-    lists.results.map(async (list) => {
-      const listId = list.id as string;
+  const result = await db
+    .prepare(query)
+    .bind(...bindings)
+    .all<{
+      list_id: string;
+      name: string;
+      list_type: string;
+      created_at: string;
+      item_id: string | null;
+      content: string | null;
+      rank: number | null;
+    }>();
 
-      const items = await db
-        .prepare(
-          `SELECT id, content, rank
-           FROM user_list_items
-           WHERE list_id = ?
-           ORDER BY rank ASC`
-        )
-        .bind(listId)
-        .all();
+  // Group results by list in JavaScript
+  const listMap = new Map<string, { id: string; name: string; type: string; items: Array<{ id: string; content: string; rank: number }> }>();
 
-      return {
-        id: listId,
-        name: list.name as string,
-        type: list.list_type as string,
-        items: items.results.map((item) => ({
-          id: item.id as string,
-          content: item.content as string,
-          rank: item.rank as number,
-        })),
-      };
-    })
-  );
+  for (const row of result.results || []) {
+    if (!listMap.has(row.list_id)) {
+      listMap.set(row.list_id, {
+        id: row.list_id,
+        name: row.name,
+        type: row.list_type,
+        items: [],
+      });
+    }
 
-  return result;
+    // Add item if it exists (LEFT JOIN may produce null items for empty lists)
+    if (row.item_id) {
+      listMap.get(row.list_id)!.items.push({
+        id: row.item_id,
+        content: row.content!,
+        rank: row.rank!,
+      });
+    }
+  }
+
+  return Array.from(listMap.values());
 }

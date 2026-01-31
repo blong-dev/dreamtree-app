@@ -127,15 +127,28 @@ export const GET = withAuth(async (_request, { userId, db: rawDb, sessionId }) =
       return NextResponse.json({ blocks: [], progress: 0, hasMore: false });
     }
 
-    // Step 4: Fetch all user responses for these blocks
-    // Now includes stem_id for simplified lookup
+    // Step 4: Fetch user responses for visible blocks only (not ALL responses)
+    // OPTIMIZED: Filter by stem IDs being returned instead of fetching everything
+    const stemIds = stemRows.results.map(r => r.id);
+    const toolIds = stemRows.results
+      .filter(r => r.block_type === 'tool' && r.content_id)
+      .map(r => r.content_id);
+
+    // Build query with both stem_id and tool_id filters for compatibility
+    const stemPlaceholders = stemIds.map(() => '?').join(',');
+    const toolPlaceholders = toolIds.length > 0 ? toolIds.map(() => '?').join(',') : '';
+
+    const responseQuery = toolIds.length > 0
+      ? `SELECT ur.id, ur.stem_id, ur.prompt_id, ur.tool_id, ur.response_text
+         FROM user_responses ur
+         WHERE ur.user_id = ? AND (ur.stem_id IN (${stemPlaceholders}) OR ur.tool_id IN (${toolPlaceholders}))`
+      : `SELECT ur.id, ur.stem_id, ur.prompt_id, ur.tool_id, ur.response_text
+         FROM user_responses ur
+         WHERE ur.user_id = ? AND ur.stem_id IN (${stemPlaceholders})`;
+
     const responses = await db.raw
-      .prepare(`
-        SELECT ur.id, ur.stem_id, ur.prompt_id, ur.tool_id, ur.response_text
-        FROM user_responses ur
-        WHERE ur.user_id = ?
-      `)
-      .bind(userId)
+      .prepare(responseQuery)
+      .bind(userId, ...stemIds, ...toolIds)
       .all<{
         id: string;
         stem_id: number | null;

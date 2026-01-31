@@ -145,6 +145,7 @@ async function writeSOAREDStory(
 // ============================================================
 // SKILL TAGGER → user_skills
 // Uses UNIQUE(user_id, skill_id) for natural upsert
+// OPTIMIZED: Pre-fetch all skill categories, batch all upserts
 // ============================================================
 
 interface SkillTaggerData {
@@ -158,38 +159,42 @@ async function writeSkills(
   data: unknown
 ): Promise<void> {
   const { selectedSkillIds } = data as SkillTaggerData;
+  if (selectedSkillIds.length === 0) return;
+
   const now = new Date().toISOString();
 
-  // Upsert each skill using ON CONFLICT
-  for (let i = 0; i < selectedSkillIds.length; i++) {
-    const skillId = selectedSkillIds[i];
+  // 1. Fetch all skill categories in ONE query
+  const placeholders = selectedSkillIds.map(() => '?').join(',');
+  const skillsResult = await db
+    .prepare(`SELECT id, category FROM skills WHERE id IN (${placeholders})`)
+    .bind(...selectedSkillIds)
+    .all<{ id: string; category: string | null }>();
 
-    // Look up skill to get category
-    const skill = await db
-      .prepare('SELECT category FROM skills WHERE id = ?')
-      .bind(skillId)
-      .first<{ category: string | null }>();
+  const skillMap = new Map(
+    (skillsResult.results || []).map(s => [s.id, s.category])
+  );
 
-    // Use INSERT OR REPLACE to handle the UNIQUE(user_id, skill_id) constraint
-    await db
-      .prepare(`
-        INSERT INTO user_skills (id, user_id, skill_id, category, rank, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, skill_id) DO UPDATE SET
-          rank = excluded.rank,
-          updated_at = excluded.updated_at
-      `)
-      .bind(
-        nanoid(),
-        userId,
-        skillId,
-        skill?.category || 'transferable',
-        i + 1,
-        now,
-        now
-      )
-      .run();
-  }
+  // 2. Build batch statements for all upserts
+  const statements = selectedSkillIds.map((skillId, i) =>
+    db.prepare(`
+      INSERT INTO user_skills (id, user_id, skill_id, category, rank, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, skill_id) DO UPDATE SET
+        rank = excluded.rank,
+        updated_at = excluded.updated_at
+    `).bind(
+      nanoid(),
+      userId,
+      skillId,
+      skillMap.get(skillId) || 'transferable',
+      i + 1,
+      now,
+      now
+    )
+  );
+
+  // 3. Execute atomically (1 round-trip)
+  await db.batch(statements);
 }
 
 // ============================================================
@@ -259,6 +264,7 @@ async function writeLifeDashboard(
 // ============================================================
 // FLOW TRACKER → user_flow_logs
 // Entries accumulate - use activity + date as natural key
+// OPTIMIZED: Pre-fetch existing entries, batch all writes
 // ============================================================
 
 interface FlowEntry {
@@ -281,44 +287,45 @@ async function writeFlowEntries(
   data: unknown
 ): Promise<void> {
   const { entries } = data as FlowTrackerData;
+  if (entries.length === 0) return;
+
   const now = new Date().toISOString();
 
-  for (const entry of entries) {
-    // Check if this activity+date already exists
-    const existing = await db
-      .prepare('SELECT id FROM user_flow_logs WHERE user_id = ? AND activity = ? AND logged_date = ?')
-      .bind(userId, entry.activity, entry.date)
-      .first<{ id: string }>();
+  // 1. Pre-fetch all existing entries for this user
+  const existingResult = await db
+    .prepare('SELECT id, activity, logged_date FROM user_flow_logs WHERE user_id = ?')
+    .bind(userId)
+    .all<{ id: string; activity: string; logged_date: string }>();
 
-    if (existing) {
+  // Build lookup map: "activity|date" -> id
+  const existingMap = new Map<string, string>();
+  for (const row of existingResult.results || []) {
+    existingMap.set(`${row.activity}|${row.logged_date}`, row.id);
+  }
+
+  // 2. Build batch statements
+  const statements = entries.map(entry => {
+    const key = `${entry.activity}|${entry.date}`;
+    const existingId = existingMap.get(key);
+
+    if (existingId) {
       // Update existing entry
-      await db
-        .prepare(`
-          UPDATE user_flow_logs
-          SET energy = ?, focus = ?
-          WHERE id = ?
-        `)
-        .bind(entry.energy, entry.focus, existing.id)
-        .run();
+      return db
+        .prepare('UPDATE user_flow_logs SET energy = ?, focus = ? WHERE id = ?')
+        .bind(entry.energy, entry.focus, existingId);
     } else {
       // Insert new entry
-      await db
+      return db
         .prepare(`
           INSERT INTO user_flow_logs (id, user_id, activity, energy, focus, logged_date, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `)
-        .bind(
-          entry.id || nanoid(),
-          userId,
-          entry.activity,
-          entry.energy,
-          entry.focus,
-          entry.date,
-          now
-        )
-        .run();
+        .bind(entry.id || nanoid(), userId, entry.activity, entry.energy, entry.focus, entry.date, now);
     }
-  }
+  });
+
+  // 3. Execute atomically
+  await db.batch(statements);
 }
 
 // ============================================================
@@ -416,6 +423,7 @@ async function writeBudget(
 // ============================================================
 // CAREER ASSESSMENT → user_career_options
 // Replace all options for user (assessment is a snapshot)
+// OPTIMIZED: DELETE + all INSERTs in single atomic batch
 // ============================================================
 
 interface CareerOption {
@@ -442,21 +450,16 @@ async function writeCareerOptions(
   const { options } = data as CareerAssessmentData;
   const now = new Date().toISOString();
 
-  // Delete existing options and insert new ones (assessment is a complete snapshot)
-  await db
-    .prepare('DELETE FROM user_career_options WHERE user_id = ?')
-    .bind(userId)
-    .run();
-
-  for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    await db
-      .prepare(`
+  // DELETE + all INSERTs in single atomic batch
+  // If any INSERT fails, DELETE rolls back too
+  const statements = [
+    db.prepare('DELETE FROM user_career_options WHERE user_id = ?').bind(userId),
+    ...options.map((opt, i) =>
+      db.prepare(`
         INSERT INTO user_career_options
         (id, user_id, title, description, rank, coherence_score, work_needs_score, life_needs_score, unknowns_score, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
+      `).bind(
         opt.id || nanoid(),
         userId,
         opt.title,
@@ -469,13 +472,16 @@ async function writeCareerOptions(
         now,
         now
       )
-      .run();
-  }
+    )
+  ];
+
+  await db.batch(statements);
 }
 
 // ============================================================
 // COMPETENCY ASSESSMENT → user_competency_scores
 // Replace all scores for user (assessment is a snapshot)
+// OPTIMIZED: DELETE + all INSERTs in single atomic batch
 // ============================================================
 
 interface CompetencyScore {
@@ -497,32 +503,24 @@ async function writeCompetencyScores(
   const { scores } = data as CompetencyAssessmentData;
   const now = new Date().toISOString();
 
-  // Delete existing scores and insert new ones (assessment is a complete snapshot)
-  await db
-    .prepare('DELETE FROM user_competency_scores WHERE user_id = ?')
-    .bind(userId)
-    .run();
-
-  for (const score of scores) {
-    await db
-      .prepare(`
+  // DELETE + all INSERTs in single atomic batch
+  const statements = [
+    db.prepare('DELETE FROM user_competency_scores WHERE user_id = ?').bind(userId),
+    ...scores.map(score =>
+      db.prepare(`
         INSERT INTO user_competency_scores (id, user_id, competency_id, level, assessed_at)
         VALUES (?, ?, ?, ?, ?)
-      `)
-      .bind(
-        nanoid(),
-        userId,
-        score.competencyId,
-        score.score,
-        now
-      )
-      .run();
-  }
+      `).bind(nanoid(), userId, score.competencyId, score.score, now)
+    )
+  ];
+
+  await db.batch(statements);
 }
 
 // ============================================================
 // EXPERIENCE BUILDER → user_experiences
 // Exercise 1.1.1 Part a: List jobs, projects, education
+// OPTIMIZED: Pre-fetch existing data, batch all writes
 // ============================================================
 
 interface ExperienceEntry {
@@ -547,7 +545,7 @@ async function writeExperiences(
   const { experiences } = data as ExperienceBuilderData;
   const now = new Date().toISOString();
 
-  // Get existing experience IDs for this user
+  // 1. Get existing experience IDs for this user
   const existingResult = await db
     .prepare('SELECT id FROM user_experiences WHERE user_id = ?')
     .bind(userId)
@@ -556,43 +554,34 @@ async function writeExperiences(
   const existingIds = new Set((existingResult.results || []).map(r => r.id));
   const newIds = new Set(experiences.map(e => e.id));
 
-  // Delete experiences that were removed (check for linked skills first)
-  for (const existingId of existingIds) {
-    if (!newIds.has(existingId)) {
-      // Check if this experience has linked skills
-      const linkedSkills = await db
-        .prepare('SELECT COUNT(*) as count FROM user_experience_skills WHERE experience_id = ?')
-        .bind(existingId)
-        .first<{ count: number }>();
+  // Find IDs to delete
+  const idsToDelete = Array.from(existingIds).filter(id => !newIds.has(id));
 
-      if (linkedSkills && linkedSkills.count > 0) {
-        // Delete the junction records first (cascade)
-        await db
-          .prepare('DELETE FROM user_experience_skills WHERE experience_id = ?')
-          .bind(existingId)
-          .run();
-      }
+  // 2. Build all statements
+  const statements: ReturnType<D1Database['prepare']>[] = [];
 
-      // Now delete the experience
-      await db
-        .prepare('DELETE FROM user_experiences WHERE id = ?')
-        .bind(existingId)
-        .run();
-    }
+  // Delete removed experiences (cascade delete junctions first, then experience)
+  for (const idToDelete of idsToDelete) {
+    // Always try to delete junctions first (harmless if none exist)
+    statements.push(
+      db.prepare('DELETE FROM user_experience_skills WHERE experience_id = ?').bind(idToDelete)
+    );
+    statements.push(
+      db.prepare('DELETE FROM user_experiences WHERE id = ?').bind(idToDelete)
+    );
   }
 
   // Upsert each experience
   for (const exp of experiences) {
     if (existingIds.has(exp.id)) {
       // Update existing
-      await db
-        .prepare(`
+      statements.push(
+        db.prepare(`
           UPDATE user_experiences
           SET title = ?, organization = ?, experience_type = ?,
               start_date = ?, end_date = ?, updated_at = ?
           WHERE id = ? AND user_id = ?
-        `)
-        .bind(
+        `).bind(
           exp.title,
           exp.organization || null,
           exp.experienceType,
@@ -602,16 +591,15 @@ async function writeExperiences(
           exp.id,
           userId
         )
-        .run();
+      );
     } else {
       // Insert new
-      await db
-        .prepare(`
+      statements.push(
+        db.prepare(`
           INSERT INTO user_experiences
           (id, user_id, title, organization, experience_type, start_date, end_date, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `)
-        .bind(
+        `).bind(
           exp.id,
           userId,
           exp.title,
@@ -622,8 +610,13 @@ async function writeExperiences(
           now,
           now
         )
-        .run();
+      );
     }
+  }
+
+  // 3. Execute all writes atomically
+  if (statements.length > 0) {
+    await db.batch(statements);
   }
 }
 
@@ -631,6 +624,7 @@ async function writeExperiences(
 // TASKS PER EXPERIENCE BUILDER → skills + user_experience_skills
 // Exercise 1.1.1 Part b: For each experience, list tasks
 // Tasks become custom skills linked to the experience
+// OPTIMIZED: Pre-fetch all data, batch all writes
 // ============================================================
 
 interface TaskEntry {
@@ -654,102 +648,140 @@ async function writeTasksPerExperience(
   data: unknown
 ): Promise<void> {
   const { experiencesWithTasks } = data as TasksPerExperienceData;
-  const now = new Date().toISOString();
+  if (experiencesWithTasks.length === 0) return;
 
-  // Process each experience
+  const now = new Date().toISOString();
+  const experienceIds = experiencesWithTasks.map(e => e.experience.id);
+
+  // Phase 1: Pre-fetch ALL existing data in bulk queries
+
+  // 1a. Get all existing experience-skill junctions for these experiences
+  const expPlaceholders = experienceIds.map(() => '?').join(',');
+  const existingJunctionsResult = await db
+    .prepare(`
+      SELECT ues.id as junction_id, ues.experience_id, ues.skill_id, s.name
+      FROM user_experience_skills ues
+      JOIN skills s ON ues.skill_id = s.id
+      WHERE ues.experience_id IN (${expPlaceholders}) AND s.created_by = ?
+    `)
+    .bind(...experienceIds, userId)
+    .all<{ junction_id: string; experience_id: string; skill_id: string; name: string }>();
+
+  // 1b. Get all custom skills created by this user (for reuse across experiences)
+  const userSkillsResult = await db
+    .prepare('SELECT id, name FROM skills WHERE created_by = ?')
+    .bind(userId)
+    .all<{ id: string; name: string }>();
+
+  // Build lookup structures
+  // Map: experienceId -> Map<skillNameLower, {junction_id, skill_id}>
+  const existingByExperience = new Map<string, Map<string, { junction_id: string; skill_id: string }>>();
+  for (const row of existingJunctionsResult.results || []) {
+    if (!existingByExperience.has(row.experience_id)) {
+      existingByExperience.set(row.experience_id, new Map());
+    }
+    existingByExperience.get(row.experience_id)!.set(
+      row.name.toLowerCase(),
+      { junction_id: row.junction_id, skill_id: row.skill_id }
+    );
+  }
+
+  // Map: skillNameLower -> skillId (all user's custom skills)
+  const userSkillsByName = new Map<string, string>(
+    (userSkillsResult.results || []).map(s => [s.name.toLowerCase(), s.id])
+  );
+
+  // Track all skill IDs that need deletion check
+  const skillIdsToCheck = new Set<string>();
+
+  // Phase 2: Build all batch statements in memory (no queries)
+  const statements: ReturnType<D1Database['prepare']>[] = [];
+  const newSkillsCreated = new Map<string, string>(); // track skills we're creating in this batch
+
   for (const expWithTasks of experiencesWithTasks) {
     const experienceId = expWithTasks.experience.id;
+    const existingForExp = existingByExperience.get(experienceId) || new Map();
+    const newTaskNames = new Set(expWithTasks.tasks.map(t => t.value.toLowerCase()));
 
-    // Get existing skills linked to this experience
-    const existingResult = await db
-      .prepare(`
-        SELECT ues.id as junction_id, s.id as skill_id, s.name
-        FROM user_experience_skills ues
-        JOIN skills s ON ues.skill_id = s.id
-        WHERE ues.experience_id = ? AND s.created_by = ?
-      `)
-      .bind(experienceId, userId)
-      .all<{ junction_id: string; skill_id: string; name: string }>();
-
-    const existingSkills = existingResult.results || [];
-    const existingNames = new Map(existingSkills.map(s => [s.name.toLowerCase(), s]));
-    const newNames = new Set(expWithTasks.tasks.map(t => t.value.toLowerCase()));
-
-    // Delete junction records for tasks that were removed
-    for (const existing of existingSkills) {
-      if (!newNames.has(existing.name.toLowerCase())) {
-        // Remove junction record
-        await db
-          .prepare('DELETE FROM user_experience_skills WHERE id = ?')
-          .bind(existing.junction_id)
-          .run();
-
-        // Check if skill is used elsewhere, if not delete it
-        const usageCount = await db
-          .prepare('SELECT COUNT(*) as count FROM user_experience_skills WHERE skill_id = ?')
-          .bind(existing.skill_id)
-          .first<{ count: number }>();
-
-        if (usageCount && usageCount.count === 0) {
-          // Also delete from user_skills (mastery ratings) to maintain referential integrity
-          await db
-            .prepare('DELETE FROM user_skills WHERE skill_id = ?')
-            .bind(existing.skill_id)
-            .run();
-
-          // Now safe to delete the skill itself
-          await db
-            .prepare('DELETE FROM skills WHERE id = ?')
-            .bind(existing.skill_id)
-            .run();
-        }
+    // Find junctions to delete (tasks removed)
+    for (const [nameLower, { junction_id, skill_id }] of existingForExp) {
+      if (!newTaskNames.has(nameLower)) {
+        statements.push(
+          db.prepare('DELETE FROM user_experience_skills WHERE id = ?').bind(junction_id)
+        );
+        skillIdsToCheck.add(skill_id);
       }
     }
 
-    // Add new tasks as skills
+    // Find tasks to add
     for (const task of expWithTasks.tasks) {
       const taskNameLower = task.value.toLowerCase();
 
-      if (!existingNames.has(taskNameLower)) {
-        // Check if this skill name already exists for this user (from another experience)
-        const existingSkill = await db
-          .prepare('SELECT id FROM skills WHERE name = ? AND created_by = ?')
-          .bind(task.value, userId)
-          .first<{ id: string }>();
+      if (!existingForExp.has(taskNameLower)) {
+        // Need to create junction. First, find or create the skill.
+        let skillId = userSkillsByName.get(taskNameLower) || newSkillsCreated.get(taskNameLower);
 
-        let skillId: string;
-
-        if (existingSkill) {
-          skillId = existingSkill.id;
-        } else {
+        if (!skillId) {
           // Create new custom skill
           skillId = nanoid();
-          await db
-            .prepare(`
+          statements.push(
+            db.prepare(`
               INSERT INTO skills (id, name, category, is_custom, created_by, review_status, created_at)
               VALUES (?, ?, 'transferable', 1, ?, 'pending', ?)
-            `)
-            .bind(skillId, task.value, userId, now)
-            .run();
+            `).bind(skillId, task.value, userId, now)
+          );
+          newSkillsCreated.set(taskNameLower, skillId);
+          userSkillsByName.set(taskNameLower, skillId); // track for other experiences
         }
 
-        // Check if junction already exists (skill might be linked via another path)
-        const existingJunction = await db
-          .prepare('SELECT id FROM user_experience_skills WHERE experience_id = ? AND skill_id = ?')
-          .bind(experienceId, skillId)
-          .first<{ id: string }>();
-
-        if (!existingJunction) {
-          // Create junction record
-          await db
-            .prepare(`
-              INSERT INTO user_experience_skills (id, experience_id, skill_id, created_at)
-              VALUES (?, ?, ?, ?)
-            `)
-            .bind(nanoid(), experienceId, skillId, now)
-            .run();
-        }
+        // Create junction
+        statements.push(
+          db.prepare(`
+            INSERT INTO user_experience_skills (id, experience_id, skill_id, created_at)
+            VALUES (?, ?, ?, ?)
+          `).bind(nanoid(), experienceId, skillId, now)
+        );
       }
+    }
+  }
+
+  // Phase 3: Execute main batch
+  if (statements.length > 0) {
+    await db.batch(statements);
+  }
+
+  // Phase 4: Clean up orphaned skills (skills no longer linked to any experience)
+  // This must be done after the main batch since we need to check post-deletion state
+  if (skillIdsToCheck.size > 0) {
+    const skillIds = Array.from(skillIdsToCheck);
+    const skillPlaceholders = skillIds.map(() => '?').join(',');
+
+    // Find skills with zero remaining junctions
+    const orphanedResult = await db
+      .prepare(`
+        SELECT s.id
+        FROM skills s
+        LEFT JOIN user_experience_skills ues ON s.id = ues.skill_id
+        WHERE s.id IN (${skillPlaceholders}) AND ues.id IS NULL
+      `)
+      .bind(...skillIds)
+      .all<{ id: string }>();
+
+    const orphanedSkillIds = (orphanedResult.results || []).map(r => r.id);
+
+    if (orphanedSkillIds.length > 0) {
+      const cleanupStatements = [];
+      for (const skillId of orphanedSkillIds) {
+        // Delete from user_skills first (mastery ratings)
+        cleanupStatements.push(
+          db.prepare('DELETE FROM user_skills WHERE skill_id = ?').bind(skillId)
+        );
+        // Then delete the skill itself
+        cleanupStatements.push(
+          db.prepare('DELETE FROM skills WHERE id = ?').bind(skillId)
+        );
+      }
+      await db.batch(cleanupStatements);
     }
   }
 }
@@ -757,6 +789,7 @@ async function writeTasksPerExperience(
 // ============================================================
 // SKILL MASTERY RATER → user_skills
 // Exercise 1.1.1 Part c: Rate mastery of all skills
+// OPTIMIZED: Pre-fetch existing records and categories, batch all writes
 // ============================================================
 
 interface SkillWithMastery {
@@ -776,30 +809,49 @@ async function writeSkillMastery(
   data: unknown
 ): Promise<void> {
   const { skills } = data as SkillMasteryRaterData;
+  if (skills.length === 0) return;
+
   const now = new Date().toISOString();
+  const skillIds = skills.map(s => s.id);
 
-  for (const skill of skills) {
-    // Check if user_skill record exists
-    const existing = await db
-      .prepare('SELECT id FROM user_skills WHERE user_id = ? AND skill_id = ?')
-      .bind(userId, skill.id)
-      .first<{ id: string }>();
+  // 1. Pre-fetch existing user_skills for these skills
+  const existingResult = await db
+    .prepare('SELECT id, skill_id FROM user_skills WHERE user_id = ?')
+    .bind(userId)
+    .all<{ id: string; skill_id: string }>();
 
-    if (existing) {
-      // Update mastery
-      await db
+  const existingBySkillId = new Map<string, string>(
+    (existingResult.results || []).map(r => [r.skill_id, r.id])
+  );
+
+  // 2. Pre-fetch skill categories for any skills we might need to insert
+  const newSkillIds = skillIds.filter(id => !existingBySkillId.has(id));
+  const categoryMap = new Map<string, string>();
+
+  if (newSkillIds.length > 0) {
+    const placeholders = newSkillIds.map(() => '?').join(',');
+    const categoriesResult = await db
+      .prepare(`SELECT id, category FROM skills WHERE id IN (${placeholders})`)
+      .bind(...newSkillIds)
+      .all<{ id: string; category: string | null }>();
+
+    for (const row of categoriesResult.results || []) {
+      categoryMap.set(row.id, row.category || 'transferable');
+    }
+  }
+
+  // 3. Build batch statements
+  const statements = skills.map(skill => {
+    const existingId = existingBySkillId.get(skill.id);
+
+    if (existingId) {
+      // Update existing
+      return db
         .prepare('UPDATE user_skills SET mastery = ?, updated_at = ? WHERE id = ?')
-        .bind(skill.mastery, now, existing.id)
-        .run();
+        .bind(skill.mastery, now, existingId);
     } else {
-      // Look up skill category
-      const skillRow = await db
-        .prepare('SELECT category FROM skills WHERE id = ?')
-        .bind(skill.id)
-        .first<{ category: string | null }>();
-
-      // Create new user_skill record
-      await db
+      // Insert new
+      return db
         .prepare(`
           INSERT INTO user_skills (id, user_id, skill_id, category, mastery, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -808,12 +860,14 @@ async function writeSkillMastery(
           nanoid(),
           userId,
           skill.id,
-          skillRow?.category || 'transferable',
+          categoryMap.get(skill.id) || 'transferable',
           skill.mastery,
           now,
           now
-        )
-        .run();
+        );
     }
-  }
+  });
+
+  // 4. Execute atomically
+  await db.batch(statements);
 }

@@ -100,44 +100,126 @@ export async function createAnonymousSession(db: D1Database): Promise<SessionDat
   };
 }
 
+// Debounce threshold for last_seen_at updates (5 minutes)
+const LAST_SEEN_THRESHOLD_MS = 5 * 60 * 1000;
+
+/**
+ * Debounced update of session last_seen_at.
+ * Only writes if more than 5 minutes stale.
+ * Fire-and-forget to avoid blocking the response.
+ */
+function maybeUpdateLastSeen(
+  db: D1Database,
+  sessionId: string,
+  lastSeenAt: string
+): void {
+  const lastSeenTime = new Date(lastSeenAt).getTime();
+  const now = Date.now();
+
+  // Only update if more than 5 minutes stale
+  if (now - lastSeenTime < LAST_SEEN_THRESHOLD_MS) {
+    return; // Skip the write entirely
+  }
+
+  // Fire-and-forget - don't await, don't block the response
+  db.prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?')
+    .bind(new Date().toISOString(), sessionId)
+    .run()
+    .catch(() => {}); // Silent fail - not critical
+}
+
+// Row type for the joined session query
+interface JoinedSessionRow {
+  // Session fields
+  session_id: string;
+  user_id: string;
+  session_created: string;
+  last_seen_at: string;
+  data_key: string | null;
+  // User fields
+  is_anonymous: number;
+  workbook_complete: number;
+  user_role: string;
+  marketing_consent: number;
+  consent_given_at: string | null;
+  user_created: string;
+  user_updated: string;
+  // Settings fields
+  background_color: string;
+  text_color: string;
+  font: string;
+  text_size: number;
+  personality_type: string | null;
+  settings_created: string;
+  settings_updated: string;
+}
+
 /**
  * Get session data from session ID
+ *
+ * OPTIMIZED: Uses single JOIN query instead of 3 separate queries.
+ * last_seen_at is debounced (only updates if >5 min stale) to avoid
+ * write lock contention under load.
  */
 export async function getSessionData(
   db: D1Database,
   sessionId: string
 ): Promise<SessionData | null> {
-  // Get session
-  const session = await db
-    .prepare('SELECT * FROM sessions WHERE id = ?')
+  // ONE query instead of three
+  const result = await db
+    .prepare(`
+      SELECT
+        s.id as session_id, s.user_id, s.created_at as session_created,
+        s.last_seen_at, s.data_key,
+        u.is_anonymous, u.workbook_complete, u.user_role,
+        u.marketing_consent, u.consent_given_at,
+        u.created_at as user_created, u.updated_at as user_updated,
+        us.background_color, us.text_color, us.font, us.text_size,
+        us.personality_type, us.created_at as settings_created,
+        us.updated_at as settings_updated
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      JOIN user_settings us ON u.id = us.user_id
+      WHERE s.id = ?
+    `)
     .bind(sessionId)
-    .first<Session>();
+    .first<JoinedSessionRow>();
 
-  if (!session) return null;
+  if (!result) return null;
 
-  // Get user
-  const user = await db
-    .prepare('SELECT * FROM users WHERE id = ?')
-    .bind(session.user_id)
-    .first<User>();
+  // Debounced last_seen_at update (fire-and-forget)
+  maybeUpdateLastSeen(db, sessionId, result.last_seen_at);
 
-  if (!user) return null;
-
-  // Get settings
-  const settings = await db
-    .prepare('SELECT * FROM user_settings WHERE user_id = ?')
-    .bind(user.id)
-    .first<UserSettings>();
-
-  if (!settings) return null;
-
-  // Update last_seen_at
-  await db
-    .prepare('UPDATE sessions SET last_seen_at = ? WHERE id = ?')
-    .bind(new Date().toISOString(), sessionId)
-    .run();
-
-  return { user, session, settings };
+  // Reconstruct the SessionData shape from joined row
+  return {
+    session: {
+      id: result.session_id,
+      user_id: result.user_id,
+      created_at: result.session_created,
+      last_seen_at: result.last_seen_at,
+      data_key: result.data_key,
+    },
+    user: {
+      id: result.user_id,
+      is_anonymous: result.is_anonymous,
+      workbook_complete: result.workbook_complete,
+      user_role: result.user_role as User['user_role'],
+      marketing_consent: result.marketing_consent,
+      consent_given_at: result.consent_given_at,
+      created_at: result.user_created,
+      updated_at: result.user_updated,
+    },
+    settings: {
+      user_id: result.user_id,
+      background_color: result.background_color,
+      text_color: result.text_color,
+      font: result.font,
+      text_size: result.text_size,
+      personality_type: result.personality_type,
+      created_at: result.settings_created,
+      updated_at: result.settings_updated,
+    },
+  };
 }
 
 /**
