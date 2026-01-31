@@ -114,7 +114,7 @@ Used by: SkillsPerStoryBuilder (stories refresh, skill selections preserved)
 | TasksPerExperienceBuilderWrapper | Done |
 | SkillMasteryRaterWrapper | Done |
 | SkillsPerStoryBuilderWrapper | Done |
-| ExperienceBuilderWrapper | **TODO** |
+| ExperienceBuilderWrapper | Done |
 | BucketingToolWrapper | **TODO** |
 | SkillTaggerWrapper | **TODO** |
 
