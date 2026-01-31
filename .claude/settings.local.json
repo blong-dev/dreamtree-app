@@ -26,7 +26,12 @@
       "Bash(cmd //c \"taskkill /PID 1164232 /F\")",
       "Bash(git checkout:*)",
       "Bash(git -C C:dreamtree-app log --oneline --all -20)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(dir:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npx eslint:*)",
+      "Bash(grep:*)",
+      "Bash(wait:*)"
     ]
   }
 }
