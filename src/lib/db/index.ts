@@ -134,6 +134,7 @@ export function createDb(db: D1Database) { // code_id:461
         text_color: 'charcoal',
         font: 'inter',
         text_size: 1.0,
+        animation_speed: 'normal',
         personality_type: null,
         created_at: now,
         updated_at: now,

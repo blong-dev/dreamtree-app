@@ -1805,7 +1805,8 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
 /* Onboarding Visuals Panel */
 .onboarding-visuals-panel {
   padding: var(--space-6);
-  max-width: 440px;
+  width: 100%;
+  max-width: 520px;
   margin: 0 auto var(--space-4) auto;
   animation: message-appear var(--duration-normal) var(--ease-default);
 }
@@ -1929,6 +1930,50 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   font-weight: var(--font-normal);
   color: var(--color-muted);
   opacity: 0.7;
+}
+
+/* Animation Speed Options */
+.visuals-animation-options {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.animation-option {
+  flex: 1;
+  min-width: 60px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-muted) 20%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-default),
+              background-color var(--duration-fast) var(--ease-default);
+}
+
+.animation-option:hover {
+  border-color: color-mix(in srgb, var(--color-muted) 40%, transparent);
+}
+
+.animation-option:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.animation-option[data-selected="true"] {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.animation-option-label {
+  font-weight: var(--font-medium);
+}
+
+.typing-cursor {
+  animation: blink 1060ms step-end infinite;
+  margin-left: 1px;
 }
 
 /* Color Swatch */

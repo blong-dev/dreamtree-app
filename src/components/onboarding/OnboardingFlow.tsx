@@ -3,17 +3,79 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ConversationThread } from '../conversation/ConversationThread';
 import { AcornIcon } from '../icons';
-import { applyTheme } from '@/lib/theme';
+import { applyTheme, ANIMATION_SPEEDS } from '@/lib/theme';
 import {
   OnboardingData,
   BackgroundColorId,
   TextColorId,
   FontFamilyId,
+  AnimationSpeed,
   COLORS,
   FONTS,
+  ANIMATION_OPTIONS,
   getValidTextColors,
   isValidPairing,
 } from './types';
+
+const PREVIEW_TEXT = "This is how text will appear.";
+
+function AnimatedPreview({ speed }: { speed: AnimationSpeed }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [cycle, setCycle] = useState(0);
+  const animationRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const speedMs = ANIMATION_SPEEDS[speed];
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    if (speedMs === 0) {
+      setDisplayedText(PREVIEW_TEXT);
+      timeoutRef.current = setTimeout(() => setCycle(c => c + 1), 5000);
+      return;
+    }
+
+    let startTime: number | null = null;
+    let lastCharIndex = -1;
+    setDisplayedText('');
+
+    const animate = (timestamp: number) => {
+      if (startTime === null) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const charIndex = Math.min(Math.floor(elapsed / speedMs), PREVIEW_TEXT.length);
+
+      if (charIndex !== lastCharIndex) {
+        lastCharIndex = charIndex;
+        setDisplayedText(PREVIEW_TEXT.slice(0, charIndex));
+      }
+
+      if (charIndex < PREVIEW_TEXT.length) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        timeoutRef.current = setTimeout(() => setCycle(c => c + 1), 5000);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [speed, cycle]);
+
+  return <>{displayedText}<span className="typing-cursor">|</span></>;
+}
 import type { Message, ContentBlock, UserResponseContent } from '../conversation/types';
 
 const STORAGE_KEY = 'dreamtree_onboarding';
@@ -32,6 +94,7 @@ interface StoredProgress {
     textColor: TextColorId | null;
     font: FontFamilyId | null;
     textSize: number;
+    animationSpeed: AnimationSpeed;
   };
   timestamp: number;
 }
@@ -77,12 +140,14 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
     textColor: TextColorId | null;
     font: FontFamilyId | null;
     textSize: number;
+    animationSpeed: AnimationSpeed;
   }>({
     name: '',
     backgroundColor: null,
     textColor: null,
     font: null,
     textSize: 1.0,
+    animationSpeed: 'normal',
   });
   const [isLoaded, setIsLoaded] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -92,7 +157,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
   useEffect(() => {
     const saved = loadProgress();
     if (saved && saved.data.name) {
-      setData({ ...saved.data, textSize: saved.data.textSize ?? 1.0 });
+      setData({ ...saved.data, textSize: saved.data.textSize ?? 1.0, animationSpeed: saved.data.animationSpeed ?? 'normal' });
       setNameInput(saved.data.name);
       if (saved.step >= 2) {
         setStep('visuals');
@@ -184,6 +249,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
 
   const handleTextSizeChange = useCallback((size: number) => {
     setData(prev => ({ ...prev, textSize: size }));
+  }, []);
+
+  const handleAnimationSpeedChange = useCallback((speed: AnimationSpeed) => {
+    setData(prev => ({ ...prev, animationSpeed: speed }));
   }, []);
 
   const handleComplete = useCallback(() => {
@@ -379,11 +448,30 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) { // code_id
               </div>
             </div>
 
+            {/* Animation Speed */}
+            <div className="visuals-section">
+              <h3 className="visuals-section-title">Animation</h3>
+              <div className="visuals-animation-options">
+                {ANIMATION_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    className="animation-option"
+                    data-selected={data.animationSpeed === option.id}
+                    onClick={() => handleAnimationSpeedChange(option.id)}
+                    aria-label={`${option.label}${data.animationSpeed === option.id ? ' (selected)' : ''}`}
+                    aria-pressed={data.animationSpeed === option.id}
+                  >
+                    <span className="animation-option-label">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Preview */}
             {data.backgroundColor && data.textColor && (
               <div className="visuals-preview">
                 <p className="visuals-preview-text">
-                  This is how your text will look.
+                  <AnimatedPreview speed={data.animationSpeed} />
                 </p>
               </div>
             )}

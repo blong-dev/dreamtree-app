@@ -1,6 +1,23 @@
+import type { AnimationSpeed } from '@/types/database';
+
 export type BackgroundColorId = 'ivory' | 'creamy-tan' | 'brown' | 'charcoal' | 'black';
 export type TextColorId = 'ivory' | 'creamy-tan' | 'brown' | 'charcoal' | 'black';
 export type FontFamilyId = 'inter' | 'lora' | 'courier-prime' | 'shadows-into-light' | 'fleur-de-leah';
+
+// Re-export AnimationSpeed for convenience
+export type { AnimationSpeed };
+
+export interface AnimationOption {
+  id: AnimationSpeed;
+  label: string;
+}
+
+export const ANIMATION_OPTIONS: AnimationOption[] = [
+  { id: 'off', label: 'Off' },
+  { id: 'slow', label: 'Slow' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'fast', label: 'Fast' },
+];
 
 export interface OnboardingData {
   name: string;
@@ -8,6 +25,7 @@ export interface OnboardingData {
   textColor: TextColorId;
   font: FontFamilyId;
   textSize: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.2 = 120%
+  animationSpeed: AnimationSpeed;
 }
 
 export interface ColorOption {

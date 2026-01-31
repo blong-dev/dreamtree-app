@@ -13,7 +13,7 @@ import { createDb } from '@/lib/db';
 import { decryptPII } from '@/lib/auth/pii';
 import { WorkbookClient } from './WorkbookClient';
 import type { BlockWithResponse } from '@/components/workbook/types';
-import type { BackgroundColorId, TextColorId, FontFamilyId } from '@/components/onboarding/types';
+import type { BackgroundColorId, TextColorId, FontFamilyId, AnimationSpeed } from '@/components/onboarding/types';
 
 // Tool IDs that contain PII and should be decrypted
 // IDs updated after schema consolidation (tools now 200001+)
@@ -60,9 +60,9 @@ export default async function WorkbookPage() { // code_id:161
   let savedSequence = 0;
   try {
     const settingsRow = await db.raw
-      .prepare('SELECT background_color, text_color, font, text_size, current_sequence FROM user_settings WHERE user_id = ?')
+      .prepare('SELECT background_color, text_color, font, text_size, animation_speed, current_sequence FROM user_settings WHERE user_id = ?')
       .bind(userId)
-      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; current_sequence: number | null }>();
+      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; animation_speed: string | null; current_sequence: number | null }>();
 
     if (settingsRow) {
       theme = {
@@ -70,6 +70,7 @@ export default async function WorkbookPage() { // code_id:161
         textColor: settingsRow.text_color as TextColorId,
         font: settingsRow.font as FontFamilyId,
         textSize: settingsRow.text_size ?? 1.0,
+        animationSpeed: (settingsRow.animation_speed || 'normal') as AnimationSpeed,
       };
       savedSequence = settingsRow.current_sequence || 0;
     }

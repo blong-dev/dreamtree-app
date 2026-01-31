@@ -32,6 +32,8 @@ interface ConversationThreadProps {
   alwaysScrollToBottom?: boolean;
   /** Key to force tool re-renders when connection data changes */
   toolRefreshKey?: number;
+  /** Animation speed in ms per character (0 = instant, default 30) */
+  animationSpeed?: number;
 }
 
 // IMP-006: Memoize MessageRenderer to prevent re-renders when messages array changes
@@ -42,6 +44,7 @@ const MessageRenderer = memo(function MessageRenderer({
   onAnimationComplete,
   renderTool,
   toolRefreshKey,
+  animationSpeed,
 }: {
   message: Message;
   onEdit?: () => void;
@@ -49,6 +52,7 @@ const MessageRenderer = memo(function MessageRenderer({
   onAnimationComplete?: (wasSkipped: boolean) => void;
   renderTool?: (data: ToolMessageData, messageId: string) => React.ReactNode;
   toolRefreshKey?: number;
+  animationSpeed?: number;
 }) { // code_id:29
   switch (message.type) {
     case 'content':
@@ -58,6 +62,7 @@ const MessageRenderer = memo(function MessageRenderer({
           animate={animate}
           onAnimationComplete={onAnimationComplete}
           id={message.id}
+          animationSpeed={animationSpeed}
         />
       );
     case 'user':
@@ -93,7 +98,9 @@ const MessageRenderer = memo(function MessageRenderer({
     // For tool messages, check if renderTool exists
     !!prevProps.renderTool === !!nextProps.renderTool &&
     // Force re-render when tool data dependencies change
-    prevProps.toolRefreshKey === nextProps.toolRefreshKey
+    prevProps.toolRefreshKey === nextProps.toolRefreshKey &&
+    // Animation speed
+    prevProps.animationSpeed === nextProps.animationSpeed
   );
 });
 
@@ -112,6 +119,7 @@ export function ConversationThread({
   renderTool,
   alwaysScrollToBottom = false,
   toolRefreshKey,
+  animationSpeed = 30,
 }: ConversationThreadProps) { // code_id:28
   const threadRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState<ScrollState>('at-current');
@@ -219,6 +227,7 @@ export function ConversationThread({
             }
             renderTool={renderTool}
             toolRefreshKey={toolRefreshKey}
+            animationSpeed={animationSpeed}
           />
         );
       })}

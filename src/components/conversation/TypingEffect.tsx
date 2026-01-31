@@ -36,7 +36,8 @@ export function TypingEffect({
       '(prefers-reduced-motion: reduce)'
     ).matches;
 
-    if (skipToEnd || prefersReducedMotion) {
+    // Instant display when: skipToEnd, reduced motion, or speed is 0 (animation off)
+    if (skipToEnd || prefersReducedMotion || speed === 0) {
       setDisplayedText(text);
       setIsComplete(true);
       if (!hasCompletedRef.current) {

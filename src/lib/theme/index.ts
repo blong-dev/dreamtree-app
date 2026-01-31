@@ -6,13 +6,23 @@
  */
 
 import type { BackgroundColorId, TextColorId, FontFamilyId } from '@/components/onboarding/types';
+import type { AnimationSpeed } from '@/types/database';
 import { getColorById, getFontById } from '@/components/onboarding/types';
+
+// Animation speed in milliseconds per character
+export const ANIMATION_SPEEDS: Record<AnimationSpeed, number> = {
+  off: 0,
+  fast: 15,
+  normal: 30,
+  slow: 60,
+};
 
 export interface ThemeSettings {
   backgroundColor: BackgroundColorId;
   textColor: TextColorId;
   font: FontFamilyId;
   textSize: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.4 = 140%
+  animationSpeed?: AnimationSpeed; // Optional - defaults to 'normal'
 }
 
 /**
@@ -61,6 +71,7 @@ export function getDefaultTheme(): ThemeSettings { // code_id:463
     textColor: 'charcoal',
     font: 'inter',
     textSize: 1.0,
+    animationSpeed: 'normal',
   };
 }
 
@@ -71,7 +82,8 @@ export function parseThemeSettings(
   backgroundColor?: string | null,
   textColor?: string | null,
   font?: string | null,
-  textSize?: number | null
+  textSize?: number | null,
+  animationSpeed?: string | null
 ): ThemeSettings { // code_id:464
   const defaults = getDefaultTheme();
 
@@ -80,5 +92,6 @@ export function parseThemeSettings(
     textColor: (textColor || defaults.textColor) as TextColorId,
     font: (font || defaults.font) as FontFamilyId,
     textSize: textSize ?? defaults.textSize,
+    animationSpeed: (animationSpeed || defaults.animationSpeed) as AnimationSpeed,
   };
 }

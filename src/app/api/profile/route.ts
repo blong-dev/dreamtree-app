@@ -22,6 +22,7 @@ interface UserSettings {
   textColor: string;
   font: string;
   textSize: number;
+  animationSpeed: string;
   personalityType: string | null;
 }
 
@@ -50,9 +51,9 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
 
     // Fetch settings
     const settings = await db
-      .prepare('SELECT background_color, text_color, font, text_size, personality_type FROM user_settings WHERE user_id = ?')
+      .prepare('SELECT background_color, text_color, font, text_size, animation_speed, personality_type FROM user_settings WHERE user_id = ?')
       .bind(userId)
-      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; personality_type: string | null }>();
+      .first<{ background_color: string; text_color: string; font: string; text_size: number | null; animation_speed: string | null; personality_type: string | null }>();
 
     // Fetch skills with skill names (join with skills table)
     const skillsResult = await db
@@ -87,6 +88,7 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
       textColor: settings?.text_color || 'charcoal',
       font: settings?.font || 'inter',
       textSize: settings?.text_size ?? 1.0,
+      animationSpeed: settings?.animation_speed || 'normal',
       personalityType: settings?.personality_type || null,
     };
 
@@ -123,6 +125,7 @@ export const GET = withAuth(async (_request, { userId, db, sessionId }) => {
 // Valid theme values (IMP-042)
 const VALID_COLORS = new Set(['ivory', 'creamy-tan', 'brown', 'charcoal', 'black', 'sage', 'rust']);
 const VALID_FONTS = new Set(['inter', 'lora', 'courier-prime', 'shadows-into-light', 'fleur-de-leah']);
+const VALID_ANIMATION_SPEEDS = new Set(['off', 'fast', 'normal', 'slow']);
 
 /**
  * PATCH /api/profile
@@ -131,7 +134,7 @@ const VALID_FONTS = new Set(['inter', 'lora', 'courier-prime', 'shadows-into-lig
 export const PATCH = withAuth(async (request, { userId, db }) => {
   try {
     const body = await request.json();
-    const { backgroundColor, textColor, font, textSize } = body;
+    const { backgroundColor, textColor, font, textSize, animationSpeed } = body;
 
     // Validate inputs (IMP-042)
     if (backgroundColor !== undefined && !VALID_COLORS.has(backgroundColor)) {
@@ -145,6 +148,9 @@ export const PATCH = withAuth(async (request, { userId, db }) => {
     }
     if (textSize !== undefined && (typeof textSize !== 'number' || textSize < 0.5 || textSize > 2.0)) {
       return NextResponse.json({ error: 'Invalid text size' }, { status: 400 });
+    }
+    if (animationSpeed !== undefined && !VALID_ANIMATION_SPEEDS.has(animationSpeed)) {
+      return NextResponse.json({ error: 'Invalid animation speed' }, { status: 400 });
     }
 
     // Build update query dynamically based on provided fields
@@ -166,6 +172,10 @@ export const PATCH = withAuth(async (request, { userId, db }) => {
     if (textSize !== undefined) {
       updates.push('text_size = ?');
       values.push(textSize);
+    }
+    if (animationSpeed !== undefined) {
+      updates.push('animation_speed = ?');
+      values.push(animationSpeed);
     }
 
     if (updates.length === 0) {

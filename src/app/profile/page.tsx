@@ -14,7 +14,7 @@ import {
 import { VisualsStep } from '@/components/onboarding/VisualsStep';
 import { applyTheme } from '@/lib/theme';
 import { useToast, ErrorBoundary } from '@/components/feedback';
-import type { BackgroundColorId, TextColorId, FontFamilyId } from '@/components/onboarding/types';
+import type { BackgroundColorId, TextColorId, FontFamilyId, AnimationSpeed } from '@/components/onboarding/types';
 import { getValidTextColors } from '@/components/onboarding/types';
 
 // IMP-023: Inline fallback for section crashes
@@ -33,6 +33,7 @@ interface ProfileApiResponse {
     textColor: string;
     font: string;
     textSize: number | null;
+    animationSpeed: string;
     personalityType: string | null;
   };
   skills: Array<{
@@ -72,6 +73,7 @@ export default function ProfilePage() { // code_id:146
   const [textColor, setTextColor] = useState<TextColorId>('charcoal');
   const [font, setFont] = useState<FontFamilyId>('inter');
   const [textSize, setTextSize] = useState<number>(1.0);
+  const [animationSpeed, setAnimationSpeed] = useState<AnimationSpeed>('normal');
   const [skills, setSkills] = useState<SkillDisplay[]>([]);
   const [values, setValues] = useState<RankedItem[]>([]);
 
@@ -96,6 +98,7 @@ export default function ProfilePage() { // code_id:146
         setTextColor((data.settings.textColor || getValidTextColors(bgColor)[0]) as TextColorId);
         setFont((data.settings.font || 'inter') as FontFamilyId);
         setTextSize(data.settings.textSize ?? 1.0);
+        setAnimationSpeed((data.settings.animationSpeed || 'normal') as AnimationSpeed);
 
         // Transform skills for display
         const transformedSkills: SkillDisplay[] = data.skills.map((s) => ({
@@ -224,6 +227,7 @@ export default function ProfilePage() { // code_id:146
           textColor,
           font,
           textSize,
+          animationSpeed,
         }),
       });
       if (!response.ok) {
@@ -237,7 +241,7 @@ export default function ProfilePage() { // code_id:146
     } finally {
       setIsSavingAppearance(false);
     }
-  }, [backgroundColor, textColor, font, textSize, showToast]);
+  }, [backgroundColor, textColor, font, textSize, animationSpeed, showToast]);
 
   if (loading) {
     return (
@@ -272,10 +276,12 @@ export default function ProfilePage() { // code_id:146
               textColor={textColor}
               font={font}
               textSize={textSize}
+              animationSpeed={animationSpeed}
               onBackgroundChange={setBackgroundColor}
               onTextColorChange={setTextColor}
               onFontChange={setFont}
               onTextSizeChange={setTextSize}
+              onAnimationSpeedChange={setAnimationSpeed}
             />
             <div className="profile-appearance-actions">
               <button

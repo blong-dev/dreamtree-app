@@ -1,26 +1,98 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import {
   BackgroundColorId,
   TextColorId,
   FontFamilyId,
+  AnimationSpeed,
   COLORS,
   FONTS,
+  ANIMATION_OPTIONS,
   getColorById,
   getFontStyle,
   getValidTextColors,
   isValidPairing,
 } from './types';
+import { ANIMATION_SPEEDS } from '@/lib/theme';
+
+const PREVIEW_TEXT = "This is how text will appear.";
+
+function AnimatedPreview({ speed, trigger }: { speed: AnimationSpeed; trigger: number }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [cycle, setCycle] = useState(0);
+  const animationRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Restart animation when speed changes or cycle increments
+  useEffect(() => {
+    const speedMs = ANIMATION_SPEEDS[speed];
+
+    // Cancel any existing animation/timeout
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Instant display for 'off'
+    if (speedMs === 0) {
+      setDisplayedText(PREVIEW_TEXT);
+      // Still cycle after 5 seconds
+      timeoutRef.current = setTimeout(() => setCycle(c => c + 1), 5000);
+      return;
+    }
+
+    // Animate typing
+    let startTime: number | null = null;
+    let lastCharIndex = -1;
+    setDisplayedText('');
+
+    const animate = (timestamp: number) => {
+      if (startTime === null) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const charIndex = Math.min(Math.floor(elapsed / speedMs), PREVIEW_TEXT.length);
+
+      if (charIndex !== lastCharIndex) {
+        lastCharIndex = charIndex;
+        setDisplayedText(PREVIEW_TEXT.slice(0, charIndex));
+      }
+
+      if (charIndex < PREVIEW_TEXT.length) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - wait 5 seconds then restart
+        timeoutRef.current = setTimeout(() => setCycle(c => c + 1), 5000);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [speed, cycle, trigger]);
+
+  return <>{displayedText}<span className="typing-cursor">|</span></>;
+}
 
 interface VisualsStepProps {
   backgroundColor: BackgroundColorId | null;
   textColor: TextColorId | null;
   font: FontFamilyId | null;
   textSize: number;
+  animationSpeed: AnimationSpeed;
   onBackgroundChange: (color: BackgroundColorId) => void;
   onTextColorChange: (color: TextColorId) => void;
   onFontChange: (font: FontFamilyId) => void;
   onTextSizeChange: (size: number) => void;
+  onAnimationSpeedChange: (speed: AnimationSpeed) => void;
 }
 
 function CheckIcon({ className, style }: { className?: string; style?: React.CSSProperties }) { // code_id:257
@@ -45,10 +117,12 @@ export function VisualsStep({
   textColor,
   font,
   textSize,
+  animationSpeed,
   onBackgroundChange,
   onTextColorChange,
   onFontChange,
   onTextSizeChange,
+  onAnimationSpeedChange,
 }: VisualsStepProps) { // code_id:256
   const previewBg = backgroundColor ? getColorById(backgroundColor).hex : undefined;
   const previewText = textColor ? getColorById(textColor).hex : undefined;
@@ -180,6 +254,25 @@ export function VisualsStep({
         </div>
       </div>
 
+      {/* Animation Speed */}
+      <div className="visuals-section">
+        <h3 className="visuals-section-title">Animation</h3>
+        <div className="visuals-animation-options">
+          {ANIMATION_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              className="animation-option"
+              data-selected={animationSpeed === option.id}
+              onClick={() => onAnimationSpeedChange(option.id)}
+              aria-label={`${option.label}${animationSpeed === option.id ? ' (selected)' : ''}`}
+              aria-pressed={animationSpeed === option.id}
+            >
+              <span className="animation-option-label">{option.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Live Preview */}
       <div
         className="visuals-preview"
@@ -191,7 +284,7 @@ export function VisualsStep({
         }}
       >
         <p className="visuals-preview-text">
-          This is how your dreamtree will look.
+          <AnimatedPreview speed={animationSpeed} trigger={0} />
         </p>
       </div>
     </div>

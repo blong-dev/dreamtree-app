@@ -10,6 +10,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 // User roles for RBAC (BUG-206)
 export type UserRole = 'user' | 'admin' | 'coach' | 'org';
 
+// Animation speed options for typing effect
+export type AnimationSpeed = 'off' | 'fast' | 'normal' | 'slow';
+
 export interface User {
   id: string;
   is_anonymous: number; // 0 or 1
@@ -53,6 +56,7 @@ export interface UserSettings {
   text_color: string;
   font: string;
   text_size: number; // Multiplier: 0.8 = 80%, 1.0 = 100%, 1.2 = 120%
+  animation_speed: AnimationSpeed; // Typing animation speed
   personality_type: string | null;
   created_at: string;
   updated_at: string;

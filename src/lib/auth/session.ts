@@ -6,7 +6,7 @@
 
 import { nanoid } from 'nanoid';
 import type { D1Database } from '@cloudflare/workers-types';
-import type { User, Session, UserSettings } from '@/types/database';
+import type { User, Session, UserSettings, AnimationSpeed } from '@/types/database';
 
 const SESSION_COOKIE_NAME = 'dt_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 365; // 1 year in seconds
@@ -93,6 +93,7 @@ export async function createAnonymousSession(db: D1Database): Promise<SessionDat
       text_color: 'charcoal',
       font: 'inter',
       text_size: 1.0,
+      animation_speed: 'normal',
       personality_type: null,
       created_at: now,
       updated_at: now,
@@ -149,6 +150,7 @@ interface JoinedSessionRow {
   text_color: string;
   font: string;
   text_size: number;
+  animation_speed: string | null;
   personality_type: string | null;
   settings_created: string;
   settings_updated: string;
@@ -175,7 +177,7 @@ export async function getSessionData(
         u.marketing_consent, u.consent_given_at,
         u.created_at as user_created, u.updated_at as user_updated,
         us.background_color, us.text_color, us.font, us.text_size,
-        us.personality_type, us.created_at as settings_created,
+        us.animation_speed, us.personality_type, us.created_at as settings_created,
         us.updated_at as settings_updated
       FROM sessions s
       JOIN users u ON s.user_id = u.id
@@ -215,6 +217,7 @@ export async function getSessionData(
       text_color: result.text_color,
       font: result.font,
       text_size: result.text_size,
+      animation_speed: (result.animation_speed || 'normal') as AnimationSpeed,
       personality_type: result.personality_type,
       created_at: result.settings_created,
       updated_at: result.settings_updated,

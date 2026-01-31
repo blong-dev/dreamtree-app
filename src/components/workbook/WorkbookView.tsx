@@ -21,6 +21,7 @@ import type { WorkbookProgress, BreadcrumbLocation as TOCLocation } from '../ove
 
 import { useApplyTheme } from '@/hooks/useApplyTheme';
 import { trackExerciseStart } from '@/lib/analytics';
+import { ANIMATION_SPEEDS } from '@/lib/theme';
 import type { BlockWithResponse, ToolData, ThemeSettings } from './types';
 import type { Message, ContentBlock, ToolMessageData } from '../conversation/types';
 import type { BreadcrumbLocation } from '../shell/types';
@@ -648,6 +649,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
           scrollTrigger={displayedBlockIndex}
           renderTool={renderTool}
           toolRefreshKey={connectionDataVersion}
+          animationSpeed={theme?.animationSpeed ? ANIMATION_SPEEDS[theme.animationSpeed] : 30}
         />
 
         <div ref={inputZoneRef}>

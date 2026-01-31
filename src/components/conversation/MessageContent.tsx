@@ -10,17 +10,22 @@ interface MessageContentProps {
   /** Called when animation completes. wasSkipped is true if user clicked to skip. */
   onAnimationComplete?: (wasSkipped: boolean) => void;
   id?: string;
+  /** Animation speed in ms per character (0 = instant, default 30) */
+  animationSpeed?: number;
 }
 
 function ContentBlockRenderer({
   block,
   animate,
   onComplete,
+  animationSpeed = 30,
 }: {
   block: ContentBlock;
   animate: boolean;
   /** Called with wasSkipped=true if user clicked, false if animation completed naturally */
   onComplete?: (wasSkipped: boolean) => void;
+  /** Animation speed in ms per character (0 = instant, default 30) */
+  animationSpeed?: number;
 }) { // code_id:32
   const [isSkipped, setIsSkipped] = useState(false);
   // Use ref to track completion state to avoid stale closures
@@ -102,9 +107,9 @@ function ContentBlockRenderer({
       return (
         <TypingEffect
           text={text}
-          speed={30}
+          speed={animationSpeed}
           onComplete={handleNaturalComplete}
-          skipToEnd={isSkipped}
+          skipToEnd={isSkipped || animationSpeed === 0}
         />
       );
     }
@@ -186,6 +191,7 @@ export function MessageContent({
   animate = true,
   onAnimationComplete,
   id,
+  animationSpeed = 30,
 }: MessageContentProps) { // code_id:31
   const generatedId = useId();
   const messageId = id || generatedId;
@@ -241,6 +247,7 @@ export function MessageContent({
             block={block}
             animate={animate && index === currentBlockIndex}
             onComplete={handleBlockComplete}
+            animationSpeed={animationSpeed}
           />
         ))}
       </div>
