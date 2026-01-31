@@ -352,8 +352,8 @@ async function writeMBTICode(
   } else {
     await db
       .prepare(`
-        INSERT INTO user_settings (user_id, background_color, text_color, font, personality_type, created_at, updated_at)
-        VALUES (?, 'ivory', 'charcoal', 'inter', ?, ?, ?)
+        INSERT INTO user_settings (user_id, background_color, text_color, font, text_size, personality_type, created_at, updated_at)
+        VALUES (?, 'ivory', 'charcoal', 'inter', 1.0, ?, ?, ?)
       `)
       .bind(userId, selectedCode, now, now)
       .run();

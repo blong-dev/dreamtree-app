@@ -44,7 +44,7 @@ const SOARED_FIELDS = [
     key: 'evaluation' as const,
     label: 'Evaluation',
     prompt: 'Looking back, what worked well? What could have been better?',
-    placeholder: 'How do you evaluate what happened?',
+    placeholder: 'How would you grade your actions in the situation?',
   },
   {
     key: 'discovery' as const,

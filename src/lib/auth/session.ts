@@ -46,8 +46,8 @@ export async function createAnonymousSession(db: D1Database): Promise<SessionDat
   // Create default settings
   await db
     .prepare(
-      `INSERT INTO user_settings (user_id, background_color, text_color, font, created_at, updated_at)
-       VALUES (?, 'ivory', 'charcoal', 'inter', ?, ?)`
+      `INSERT INTO user_settings (user_id, background_color, text_color, font, text_size, created_at, updated_at)
+       VALUES (?, 'ivory', 'charcoal', 'inter', 1.0, ?, ?)`
     )
     .bind(userId, now, now)
     .run();
@@ -92,6 +92,7 @@ export async function createAnonymousSession(db: D1Database): Promise<SessionDat
       background_color: 'ivory',
       text_color: 'charcoal',
       font: 'inter',
+      text_size: 1.0,
       personality_type: null,
       created_at: now,
       updated_at: now,

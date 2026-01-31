@@ -92,14 +92,12 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // UI state
   const [waitingForContinue, setWaitingForContinue] = useState(false);
   const [currentAnimationComplete, setCurrentAnimationComplete] = useState(false);
-  const [inputZoneCollapsed, setInputZoneCollapsed] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
 
   // Edit state
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
 
   // Refs
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputZoneRef = useRef<HTMLDivElement>(null);
   const blockContentCache = useRef<Map<number, ContentBlock[]>>(new Map());
   const isAdvancingRef = useRef(false);
@@ -423,29 +421,6 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     [blocks]
   );
 
-  // Scroll tracking for input zone collapse
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => { // code_id:386
-      const scrollTop = container.scrollTop;
-      const viewportHeight = window.innerHeight;
-      setInputZoneCollapsed(scrollTop > viewportHeight);
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const handleExpandInputZone = useCallback(() => {
-    setInputZoneCollapsed(false);
-    // Wait for React to render and browser to finish layout of expanded input zone
-    setTimeout(() => {
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
-    }, 50);
-  }, []);
-
   // Check if window is scrolled to (or near) the bottom of the page
   const isScrolledToBottom = useCallback(() => {
     const threshold = 50; // pixels from bottom
@@ -604,12 +579,6 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
   // Active input check (tool editing is now in-place, not in input zone)
   const hasActiveInput = hasToolInput || hasContinue;
 
-  const getCollapsedLabel = () => { // code_id:390
-    if (hasToolInput) return 'Tap to respond';
-    if (hasContinue) return 'Tap to continue';
-    return 'Tap to continue';
-  };
-
   // BUG-380: Render completed tools in conversation history
   // Tools stay editable - no read-only mode or Edit button needed
   const renderTool = useCallback((data: ToolMessageData, messageId: string) => {
@@ -661,7 +630,6 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     >
       <div
         className="workbook-view"
-        ref={scrollContainerRef}
         onClick={handleContentAreaClick}
         data-tap-to-continue={hasContinue ? 'true' : 'false'}
       >
@@ -677,12 +645,7 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
         />
 
         <div ref={inputZoneRef}>
-          <WorkbookInputZone
-            collapsed={inputZoneCollapsed}
-            onExpand={handleExpandInputZone}
-            hasActiveInput={hasActiveInput}
-            collapsedLabel={getCollapsedLabel()}
-          >
+          <WorkbookInputZone hasActiveInput={hasActiveInput}>
             {/* All tools (textarea, text_input, structured, interactive) use ToolEmbed */}
             {/* Key forces remount when block changes, ensuring fresh data fetch */}
             {hasToolInput && currentBlock && (

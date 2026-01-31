@@ -1,3 +1,5 @@
+import type { InputConfig, ToolType } from '@/components/workbook/types';
+
 export type ContentBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'heading'; level: 2 | 3 | 4; text: string }
@@ -40,9 +42,9 @@ export type ToolMessageData = {
   connectionId: number | null;
   response: string; // JSON stringified tool data
   // Schema consolidation: simple input tools need these fields
-  toolType?: string;
+  toolType?: ToolType;
   promptText?: string | null;
-  inputConfig?: Record<string, unknown>;
+  inputConfig?: InputConfig;
 };
 
 export type Message = {

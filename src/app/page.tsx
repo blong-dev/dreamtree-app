@@ -385,6 +385,7 @@ export default async function HomePage() { // code_id:142
     backgroundColor: (sessionData.settings?.background_color || 'ivory') as BackgroundColorId,
     textColor: (sessionData.settings?.text_color || 'charcoal') as TextColorId,
     fontFamily: (sessionData.settings?.font || 'inter') as FontFamilyId,
+    textSize: sessionData.settings?.text_size ?? 1.0,
   };
 
   return (

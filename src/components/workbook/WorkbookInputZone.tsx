@@ -4,14 +4,8 @@ import { ReactNode, useRef, useState, useEffect } from 'react';
 import { ChevronDownIcon } from '../icons';
 
 interface WorkbookInputZoneProps {
-  /** Whether the input zone is collapsed (after scrolling) */
-  collapsed: boolean;
-  /** Callback to expand the collapsed zone */
-  onExpand: () => void;
   /** The active input content (PromptInput, ToolEmbed, Continue, or TextInput) */
   children: ReactNode;
-  /** Label to show in collapsed state */
-  collapsedLabel?: string;
   /** Whether there's any active input to show */
   hasActiveInput: boolean;
 }
@@ -27,10 +21,7 @@ interface WorkbookInputZoneProps {
  * This matches chat app patterns where content and input flow together.
  */
 export function WorkbookInputZone({
-  collapsed,
-  onExpand,
   children,
-  collapsedLabel = 'Tap to continue',
   hasActiveInput,
 }: WorkbookInputZoneProps) { // code_id:384
   const inputZoneRef = useRef<HTMLDivElement>(null);
@@ -67,24 +58,12 @@ export function WorkbookInputZone({
       <div
         ref={inputZoneRef}
         className="workbook-input-zone"
-        data-collapsed={collapsed}
         data-has-input={hasActiveInput}
       >
         {hasActiveInput ? (
-          collapsed ? (
-            <button
-              className="workbook-input-zone-expand"
-              onClick={onExpand}
-              aria-label="Expand input area"
-            >
-              <ChevronDownIcon />
-              <span>{collapsedLabel}</span>
-            </button>
-          ) : (
-            <div className="workbook-input-zone-content">
-              {children}
-            </div>
-          )
+          <div className="workbook-input-zone-content">
+            {children}
+          </div>
         ) : (
           /* Empty placeholder to reserve space and prevent content jumping */
           <div className="workbook-input-zone-placeholder" aria-hidden="true" />

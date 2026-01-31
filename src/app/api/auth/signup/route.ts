@@ -196,8 +196,8 @@ export async function POST(request: NextRequest) { // code_id:135
       // 5. Create default settings
       db
         .prepare(
-          `INSERT INTO user_settings (user_id, background_color, text_color, font, created_at, updated_at)
-           VALUES (?, 'ivory', 'charcoal', 'inter', ?, ?)`
+          `INSERT INTO user_settings (user_id, background_color, text_color, font, text_size, created_at, updated_at)
+           VALUES (?, 'ivory', 'charcoal', 'inter', 1.0, ?, ?)`
         )
         .bind(userId, now, now),
 
