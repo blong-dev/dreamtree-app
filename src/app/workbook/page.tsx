@@ -11,6 +11,7 @@ import { getDB } from '@/lib/db/connection';
 import { getSessionData } from '@/lib/auth/session';
 import { createDb } from '@/lib/db';
 import { decryptPII } from '@/lib/auth/pii';
+import { getTOCData } from '@/lib/toc/get-toc-data';
 import { WorkbookClient } from './WorkbookClient';
 import type { BlockWithResponse } from '@/components/workbook/types';
 import type { BackgroundColorId, TextColorId, FontFamilyId, AnimationSpeed } from '@/components/onboarding/types';
@@ -190,6 +191,9 @@ export default async function WorkbookPage() { // code_id:161
     }
   }
 
+  // Fetch TOC data for the side panel
+  const tocParts = await getTOCData(rawDb, userId);
+
   // Transform and merge blocks with responses
   const blocks: BlockWithResponse[] = await Promise.all(
     (stemRows.results || []).map(async (row) => {
@@ -254,6 +258,7 @@ export default async function WorkbookPage() { // code_id:161
       initialBlocks={blocks}
       initialProgress={progress}
       theme={theme}
+      tocParts={tocParts}
     />
   );
 }

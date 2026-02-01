@@ -18,6 +18,7 @@ import { WorkbookInputZone } from './WorkbookInputZone';
 import { useToast } from '../feedback';
 import { TOCPanel } from '../overlays/TOCPanel';
 import type { WorkbookProgress, BreadcrumbLocation as TOCLocation } from '../overlays/types';
+import type { TOCPartData } from '../dashboard';
 
 import { useApplyTheme } from '@/hooks/useApplyTheme';
 import { trackExerciseStart } from '@/lib/analytics';
@@ -31,6 +32,29 @@ interface WorkbookViewProps {
   initialBlocks: BlockWithResponse[];
   initialProgress: number;
   theme?: ThemeSettings;
+  tocParts: TOCPartData[];
+}
+
+// Convert TOCPartData to WorkbookProgress format for TOCPanel
+function toWorkbookProgress(parts: TOCPartData[]): WorkbookProgress {
+  return {
+    parts: parts.map((part) => ({
+      id: part.id,
+      title: part.title,
+      status: part.status,
+      percentComplete: part.progress,
+      modules: part.modules.map((mod) => ({
+        id: mod.id,
+        title: mod.title,
+        status: mod.status,
+        exercises: mod.exercises.map((ex) => ({
+          id: ex.id,
+          title: ex.title,
+          status: ex.status,
+        })),
+      })),
+    })),
+  };
 }
 
 // Convert block content to conversation content
@@ -55,7 +79,7 @@ function blockToConversationContent(block: BlockWithResponse): ContentBlock[] { 
   }
 }
 
-export function WorkbookView({ initialBlocks, initialProgress, theme }: WorkbookViewProps) { // code_id:2
+export function WorkbookView({ initialBlocks, initialProgress, theme, tocParts }: WorkbookViewProps) { // code_id:2
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -604,34 +628,8 @@ export function WorkbookView({ initialBlocks, initialProgress, theme }: Workbook
     exerciseTitle: `Exercise ${currentExerciseId}`,
   };
 
-  // TOC progress (minimal)
-  const tocProgress: WorkbookProgress = useMemo(
-    () => ({
-      parts: [
-        {
-          id: partStr,
-          title: `Part ${part}: ${part === 1 ? 'Roots' : part === 2 ? 'Trunk' : 'Branches'}`,
-          status: 'in-progress',
-          percentComplete: 0,
-          modules: [
-            {
-              id: `${part}.${moduleNum}`,
-              title: `Module ${moduleNum}`,
-              status: 'in-progress',
-              exercises: [
-                {
-                  id: currentExerciseId,
-                  title: `Exercise ${currentExerciseId}`,
-                  status: 'in-progress',
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    }),
-    [partStr, part, moduleNum, currentExerciseId]
-  );
+  // Convert TOC data to WorkbookProgress format
+  const tocProgress = useMemo(() => toWorkbookProgress(tocParts), [tocParts]);
 
   // Handle navigation
   const handleNavigate = (id: string) => { // code_id:388
