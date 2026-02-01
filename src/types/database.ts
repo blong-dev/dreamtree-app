@@ -104,7 +104,8 @@ export interface UserSkill {
   user_id: string;
   skill_id: string;
   category: SkillCategory | null;
-  mastery: number | null; // 1-5
+  mastery: number | null; // 1-10
+  frequency: number | null; // 1-10 (how often used)
   evidence: string | null;
   rank: number | null;
   evidence_count: number; // derived count of evidence records

@@ -24,4 +24,5 @@ export { ExperienceBuilderWrapper } from './ExperienceBuilderWrapper';
 export { TasksPerExperienceBuilderWrapper } from './TasksPerExperienceBuilderWrapper';
 export { SkillsPerStoryBuilderWrapper } from './SkillsPerStoryBuilderWrapper';
 export { SkillMasteryRaterWrapper } from './SkillMasteryRaterWrapper';
+export { SkillFrequencyRaterWrapper } from './SkillFrequencyRaterWrapper';
 export type { ToolWrapperProps, ToolSaveResponse, ToolWrapperRef } from './types';

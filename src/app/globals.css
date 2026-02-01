@@ -3152,6 +3152,172 @@ a:not([class*="button"]):not([class*="card"]):not([class*="nav"]) {
   background: var(--color-primary);
 }
 
+/* Skill Frequency Rater */
+.skill-frequency-rater {
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+}
+
+.skill-frequency-rater[data-disabled="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.skill-frequency-empty {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-muted) 5%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.skill-frequency-header {
+  margin-bottom: var(--space-5);
+}
+
+.skill-frequency-instructions {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  margin-bottom: var(--space-3);
+}
+
+.skill-frequency-legend {
+  display: flex;
+  justify-content: space-between;
+  max-width: 300px;
+}
+
+.skill-frequency-legend-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.skill-frequency-legend-value {
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+}
+
+.skill-frequency-legend-label {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.skill-frequency-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.skill-frequency-summary {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-muted) 5%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.skill-frequency-summary-title {
+  font-weight: var(--font-medium);
+  margin-bottom: var(--space-2);
+}
+
+.skill-frequency-summary-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.skill-frequency-group {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.skill-frequency-group-count {
+  font-weight: var(--font-medium);
+  color: var(--color-text);
+  margin-right: var(--space-1);
+}
+
+.skill-frequency-item {
+  padding: var(--space-3);
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-muted) 20%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.skill-frequency-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+
+.skill-frequency-item-name {
+  font-weight: var(--font-medium);
+}
+
+.skill-frequency-item-level {
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+}
+
+.skill-frequency-item-slider {
+  position: relative;
+}
+
+.skill-frequency-range {
+  width: 100%;
+  height: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: color-mix(in srgb, var(--color-muted) 20%, transparent);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.skill-frequency-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: none;
+}
+
+.skill-frequency-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  border: none;
+}
+
+.skill-frequency-range:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.skill-frequency-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-top: var(--space-1);
+}
+
+.skill-frequency-tick {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-muted) 30%, transparent);
+}
+
+.skill-frequency-tick.filled {
+  background: var(--color-primary);
+}
+
 /* SOARED Form */
 .soared-form {
   display: flex;

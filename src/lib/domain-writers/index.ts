@@ -25,6 +25,7 @@ const DOMAIN_WRITERS: Record<string, DomainWriter> = {
   'experience_builder': writeExperiences,
   'tasks_per_experience_builder': writeTasksPerExperience,
   'skill_mastery_rater': writeSkillMastery,
+  'skill_frequency_rater': writeSkillFrequency,
 };
 
 type DomainWriter = (
@@ -937,4 +938,58 @@ async function writeSkillMastery(
 
   // 4. Execute atomically
   await db.batch(statements);
+}
+
+// ============================================================
+// SKILL FREQUENCY RATER → user_skills
+// Exercise 1.1.5: Rate frequency of all skills
+// OPTIMIZED: Pre-fetch existing records, batch all writes
+// ============================================================
+
+interface SkillWithFrequency {
+  id: string;
+  name: string;
+  frequency: number; // 1-10
+}
+
+interface SkillFrequencyRaterData {
+  skills: SkillWithFrequency[];
+}
+
+async function writeSkillFrequency(
+  db: D1Database,
+  userId: string,
+  _stemId: number,
+  data: unknown
+): Promise<void> {
+  const { skills } = data as SkillFrequencyRaterData;
+  if (skills.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  // 1. Pre-fetch existing user_skills for these skills
+  const existingResult = await db
+    .prepare('SELECT id, skill_id FROM user_skills WHERE user_id = ?')
+    .bind(userId)
+    .all<{ id: string; skill_id: string }>();
+
+  const existingBySkillId = new Map<string, string>(
+    (existingResult.results || []).map(r => [r.skill_id, r.id])
+  );
+
+  // 2. Build batch statements (only update existing user_skills - don't create new ones)
+  // Skills should already exist from previous exercises (Part b)
+  const statements = skills
+    .filter(skill => existingBySkillId.has(skill.id))
+    .map(skill => {
+      const existingId = existingBySkillId.get(skill.id)!;
+      return db
+        .prepare('UPDATE user_skills SET frequency = ?, updated_at = ? WHERE id = ?')
+        .bind(skill.frequency, now, existingId);
+    });
+
+  // 3. Execute atomically
+  if (statements.length > 0) {
+    await db.batch(statements);
+  }
 }

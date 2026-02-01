@@ -13,6 +13,7 @@ interface SkillRow {
   id: string;
   name: string;
   mastery: number | null;
+  frequency: number | null;
 }
 
 export const GET = withAuth(async (_request, { userId, db }) => {
@@ -21,7 +22,7 @@ export const GET = withAuth(async (_request, { userId, db }) => {
     // This includes both library skills and custom skills
     const result = await db
       .prepare(
-        `SELECT DISTINCT s.id, s.name, us.mastery
+        `SELECT DISTINCT s.id, s.name, us.mastery, us.frequency
          FROM user_skills us
          JOIN skills s ON us.skill_id = s.id
          WHERE us.user_id = ?
@@ -35,6 +36,7 @@ export const GET = withAuth(async (_request, { userId, db }) => {
       id: row.id,
       name: row.name,
       mastery: row.mastery ?? 5, // Default to 5 (middle) if not rated yet
+      frequency: row.frequency ?? 5, // Default to 5 (middle) if not rated yet
     }));
 
     return NextResponse.json({ skills });

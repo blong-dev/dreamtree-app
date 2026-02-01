@@ -36,6 +36,7 @@ import {
   TasksPerExperienceBuilderWrapper,
   SkillsPerStoryBuilderWrapper,
   SkillMasteryRaterWrapper,
+  SkillFrequencyRaterWrapper,
   type ToolSaveResponse,
   type ToolWrapperRef,
 } from './tool-wrappers';
@@ -96,7 +97,8 @@ type ToolName =
   | 'experience_builder'
   | 'tasks_per_experience_builder'
   | 'skills_per_story_builder'
-  | 'skill_mastery_rater';
+  | 'skill_mastery_rater'
+  | 'skill_frequency_rater';
 
 export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolEmbed(
   { tool, stemId, connectionId, onComplete, initialData, readOnly = false, refreshTrigger, onDataChange },
@@ -210,6 +212,8 @@ export const ToolEmbed = forwardRef<ToolEmbedRef, ToolEmbedProps>(function ToolE
         return <SkillsPerStoryBuilderWrapper {...commonProps} />;
       case 'skill_mastery_rater':
         return <SkillMasteryRaterWrapper {...commonProps} />;
+      case 'skill_frequency_rater':
+        return <SkillFrequencyRaterWrapper {...commonProps} />;
       default:
         return (
           <div className="tool-embed-placeholder">

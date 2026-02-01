@@ -30,6 +30,7 @@ export { CompetencyAssessment } from './CompetencyAssessment';
 export { ExperienceBuilder, type ExperienceEntry } from './ExperienceBuilder';
 export { TasksPerExperienceBuilder, type ExperienceWithTasks, type TaskEntry, type TasksPerExperienceLabels } from './TasksPerExperienceBuilder';
 export { SkillMasteryRater, type SkillWithMastery } from './SkillMasteryRater';
+export { SkillFrequencyRater, type SkillWithFrequency } from './SkillFrequencyRater';
 export { ToolPage } from './ToolPage';
 export type { ToolType, ToolInstance } from './ToolPage';
 export { ToolInstanceCard } from './ToolInstanceCard';
